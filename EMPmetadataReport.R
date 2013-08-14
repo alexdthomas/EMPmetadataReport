@@ -40,11 +40,10 @@ emp.map<-Reduce(function(x, y) merge(x, y, all=TRUE), all.maps)
 
 
 #pick through each study and find which common columns have different classes
-map.class.tmp<-list()
 map.class<-list()
 
 for(i in 1:length(all.maps)){
-	for(j in i:length(all.maps)){
+	for(j in 1:length(all.maps)){
 		all.maps.cnames<-colnames(all.maps[[i]]
 															[which(unlist(lapply(all.maps[i], colnames)) %in%  
 																		 	unlist(lapply(all.maps[j], colnames)))])
@@ -52,10 +51,9 @@ for(i in 1:length(all.maps)){
 		dat2.class<-lapply(all.maps[[j]][all.maps.cnames], class)
 		dat1.class<-unlist(dat1.class)
 		dat2.class<-unlist(dat2.class)
-		map.class.tmp[[j]]<-cbind(dat1.class[which(!dat1.class==dat2.class)], 
-													 dat2.class[which(!dat2.class==dat1.class)])
+		map.class[[i]]<-cbind(dat1.class[which(!dat1.class==dat2.class)], 
+													dat2.class[which(!dat2.class==dat1.class)])
 	}
-	map.class[[i]]<-map.class.tmp
 }
-map.class[[1]]
+map.class
 #haha, and this works
