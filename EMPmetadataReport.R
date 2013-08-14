@@ -1,4 +1,6 @@
 #restart the metdata analysis using Git in the new directory
+#redo first_to_merge_class_issues, 
+#this time set characterAsFactor=FALSE when import
 
 library(BiocInstaller)
 library(XML)
@@ -22,130 +24,168 @@ map.file.names<-list.files()
 all.maps<-list()
 
 #import all mapping files, name as individual objects and place in list
+#note characterAsFactors=FALSE to reduce class issues
+#though this only removes issues of character -> factor and vice versa issues
+#does not resolve charcter-> integer, numeric, date etc...
 for (i in 1:length(map.file.names)){
-	all.maps[[i]]<-assign(paste("map", i, sep=""), read.delim(map.file.names[i], quote=""))
+	all.maps[[i]]<-assign(paste("map", i, sep=""), read.delim(map.file.names[i], quote="", stringsAsFactors=FALSE))
 }
 
 #reset working directory 
 setwd("~/EarthMicrobiomeProject/R/EMPmetadataReport")
 
-#explore the list of all studies before reducing to one dataframe
-dim(all.maps[[1]])
-head(all.maps[[1]])
-sum(is.na(all.maps[[1]]))
-boxplot(is.na(all.maps[[1]]))
-sort(apply(all.maps[[1]], 2, function(x){length(which(is.na(x)))}))
-all.maps[[1]][, c("KEY_SEQ", "REGION", "AGE_IN_YEARS")]
+#check merge
+emp.map<-Reduce(function(x, y) merge(x, y, all=TRUE), all.maps)
+#well no more warnings, so character/ factor resolved
 
-#so can make a list of how many values are NA out of total
-unlist(lapply(all.maps, function(x) paste(length(which(is.na(x))), 
-																					nrow(x)*ncol(x), sep="/")))
+#can still find columns with same names and different classes?
+emp.col.names<-unique(unlist(lapply(all.maps, colnames)))
 
-#mean NA?
-sort(unlist(lapply(all.maps, function(x) mean(is.na(x)))))
-#one of them is 25% NA?
-which(unlist(lapply(all.maps, function(x) mean(is.na(x))))>0.24)
+#create subset to test code
+few.maps<-list(all.maps[[1]], all.maps[[2]], all.maps[[3]])
+lapply(few.maps, head)
+emp.col.names<-unique(unlist(lapply(few.maps, colnames)))
 
-#explore that one
-head(all.maps[[41]])
-sort(apply(all.maps[[41]], 2, function(x){length(which(is.na(x)))}))
+head(few.maps[[1]])
+class(few.maps[[1]])
+identical(class(few.maps[[1]][,1]), class(few.maps[[2]][,1]))
 
-#can get study titles
-lapply(all.maps, function(x) unique(x[,"TITLE"]))
-#great, some studies gave each sample a unique  title... annoying
-which(lapply(all.maps, function(x) length(unique(x[,"TITLE"])))>1)
-#oh, only 2
+dim(
+	few.maps[[1]][,which(unlist(lapply(few.maps[1], colnames)) %in%  unlist(lapply(few.maps[2], colnames)))]
+)
 
-#copy to edit
-all.maps2<-all.maps
+dim(few.maps[[1]])
 
-#should probably fix this for later reporting...
-sort(all.maps2[[9]][,"TITLE"])
-#so this is an Excel 'draw down error', 
-#started with "Intertidal microbes 16s for 2009 and 2010"
-#have to juggle a little as TITLE is factor
-all.maps2[[9]][,"TITLE"]<-as.character(all.maps2[[9]][,"TITLE"])
-all.maps2[[9]][,"TITLE"]<-"Intertidal microbes 16s for 2009 and 2010"
-all.maps2[[9]][,"TITLE"]<-as.factor(all.maps2[[9]][,"TITLE"])
+which(unlist(lapply(few.maps[1], colnames)) %in%  
+				unlist(lapply(few.maps[2], colnames)))
 
-#the other one
-sort(all.maps2[[16]][,"TITLE"])
-#same issue
-all.maps2[[16]][,"TITLE"]<-as.character(all.maps2[[16]][,"TITLE"])
-all.maps2[[16]][,"TITLE"]<-"EPOCA_Svalbard2018"
-all.maps2[[16]][,"TITLE"]<-as.factor(all.maps2[[16]][,"TITLE"])
+few.maps.cnames<-colnames(few.maps[[1]]
+													[,which(unlist(lapply(few.maps[1], colnames)) %in%  
+																		unlist(lapply(few.maps[2], colnames)))])
 
-#and titles
-unlist(lapply(all.maps2, function(x) unique(x[,"TITLE"])))
-#ah good
+summary(lapply(few.maps[[3]][,c(few.maps.cnames)], class) %in%
+					lapply(few.maps[[4]][,c(few.maps.cnames)], class))
 
-#make a little table...
-study_count_NA_table<-
-	data.frame(TITLE=unlist(lapply(all.maps2, function(x) unique(x[,"TITLE"]))),
-						 No_SAMPLES=unlist(lapply(all.maps2, nrow)),
-						 No_COLUMNS=unlist(lapply(all.maps2, ncol)),
-						 No_NA=unlist(lapply(all.maps2, function(x) length(which(is.na(x))))),
-						 No_VALUES=unlist(lapply(all.maps2, function(x) nrow(x)*ncol(x))),
-						 PERCENT_NA=(round(unlist(lapply(all.maps2, function(x) mean(is.na(x)))),2)*100)
-	)
-#sort by TITLE
-study_count_NA_table<-study_count_NA_table[order(as.character(study_count_NA_table$TITLE)),]
+#test loop methods
+dat1<-data.frame(col1=as.integer(c(1,2,3)), col3=as.integer(c(4,5,6)))
+dat2<-data.frame(col1=as.numeric(c(1,2,3)), col3=as.integer(c(4,5,6)))
+dat3<-data.frame(col4=as.integer(c(1,2,3)), col3=as.character(c(4,5,6)))
 
-#export to subfolder of working directory, remove row names
-write.csv(study_count_NA_table, 
-					file.path(paste(getwd(), 
-													"outputs/study_count_NA_table.csv", sep="/")), 
-					row.names=FALSE)
+dat<-list(dat1, dat2, dat3)
+
+dat.names<-colnames(dat[[1]]
+										[which(unlist(lapply(dat[1], colnames)) %in%  
+													 	unlist(lapply(dat[2], colnames)))])
+
+dat1.class<-lapply(dat[[1]][dat.names], class)
+dat2.class<-lapply(dat[[2]][dat.names], class)
+
+dat.class1<-which(!dat1.class %in% dat2.class)
+dat.class2<-which(!dat2.class %in% dat1.class)
+
+dat1.class==dat2.class
+isTRUE(all.equal(dat1.class, dat2.class))
+duplicated(dat1.class, dat2.class)
+duplicated(dat1.class[2],dat2.class[2])
+dat1.class[2] 
+dat2.class[2]
+all.equal(dat1.class[2],dat2.class[2])
+intersect(dat1.class, dat2.class)
+dat1.class[intersect(names(dat1.class), names(dat2.class))] == dat2.class[intersect(names(dat1.class), names(dat2.class))]
+
+submaps1<-which(lapply(dat1.class, function(x) isTRUE(all.equal(x, dat2.class))))
+
+#found this example here
+#http://stackoverflow.com/questions/12958335/compare-two-character-vectors-matching-names
+#modified as list, realizes issue was using lists
+x <- list("a", "b", "c", "d", "e")
+names(x) <- c("foo", "bar", "baz", "qux", "grault")
+
+y <- list("c", "a", "d", "b")
+names(y) <- c("bar", "foo", "qux", "corge")
+x
+x[intersect(names(x), names(y))] == y[intersect(names(x), names(y))]
+
+#just unlist
+dat1.class<-unlist(dat1.class)
+dat2.class<-unlist(dat2.class)
+
+#and this works
+dat1.class==dat2.class
+
+#can get fancy
+cbind(dat1.class[which(!dat1.class==dat2.class)], dat2.class[which(!dat2.class==dat1.class)])
+
+#this only works to compare one dataset to the next one
+map.class1<-list()
+map.class2<-list()
+
+for(i in 1:(length(all.maps)-1)){
+	all.maps.cnames<-colnames(all.maps[[i]]
+														[,which(unlist(lapply(all.maps[i], colnames)) %in%  
+																			unlist(lapply(all.maps[-i], colnames)))])
+	
+	dat1.class<-lapply(all.maps[[i]][,c(all.maps.cnames)], class)
+	dat2.class<-lapply(all.maps[[-i]][,c(all.maps.cnames)], class)
+	submaps1<-which(!dat1.class %in% dat2.class) 
+	submaps2<-which(!dat2.class %in% dat1.class)
+	map.class1[[i]]<-colnames(all.maps[[i]][submaps1])
+	map.class2[[i]]<-colnames(all.maps[[i+1]][submaps2])
+	
+}
+
+map.class1
+map.class2
+
+#should go through each study and compare to all othe studies
+all.maps.cnames<-colnames(dat[[1]]
+													[which(unlist(lapply(dat[1], colnames)) %in%  
+																 	unlist(lapply(dat[2], colnames)))])
+dat1.class<-lapply(dat[[1]][all.maps.cnames], class)
+dat2.class<-lapply(dat[[2]][all.maps.cnames], class)
+
+submaps1<-which(lapply(dat1.class, function(x) isTRUE(all.equal(x, dat2.class)))==FALSE)
+submaps2<-which(lapply(dat2.class, function(x) isTRUE(all.equal(x, dat1.class)))==FALSE)
 
 
-#now a little more depth...
-#check out column names
-study_column_table<-sort(table(unlist(lapply(all.maps2, colnames))), decreasing=TRUE)
+submaps1<-which(!dat1.class %in% dat2.class) 
+submaps2<-which(!dat2.class %in% dat1.class)
+map.class1[[i]]<-colnames(dat[[1]][submaps1])
+map.class2[[i]]<-colnames(dat[[2]][submaps2])
 
-#clean up for exporting
-study_column_table<-as.data.frame(study_column_table)
-#study names are currently row names, add as column
-study_column_table$COLUMN_NAMES<-rownames(study_column_table)
-#rename count column
-colnames(study_column_table)[1]<-"No_STUDIES"
-#replace row names
-rownames(study_column_table)<-as.character(1:nrow(study_column_table))
-#reorder
-study_column_table<-study_column_table[,c(2,1)]
-#subset to fit on MSword page, place side by side
-study_column_table<-cbind(study_column_table[1:40,], study_column_table[41:80,])
+all.maps.cnames<-colnames(all.maps[[1]]
+													[which(unlist(lapply(all.maps[1], colnames)) %in%  
+																 	unlist(lapply(all.maps[45], colnames)))])
+dat1.class<-lapply(all.maps[[1]][all.maps.cnames], class)
+dat2.class<-lapply(all.maps[[45]][all.maps.cnames], class)
 
-#add a little note, how many columns not shown...
-study_column_table<-rbind(study_column_table, 
-													c(paste("*", 
-																	paste(as.character(length(unique(unlist(lapply(all.maps2, colnames))))-nrow(study_column_table)*2), 
-																				"columns not shown", sep=" "), 
-																	sep=""), "", "", ""))
+isTRUE(all.equal(dat1.class, dat2.class))
+lapply(dat1.class, function(x) isTRUE(all.equal(x, dat2.class)))
 
-#this is handy...
-write.csv(study_column_table, 
-					file.path(paste(getwd(), 
-													"outputs/study_column_table.csv", sep="/")), 
-					row.names=FALSE)
+which(sapply(dat1.class, function(x) isTRUE(all.equal(x, dat2.class)))) 
 
-#explore most common column values
-com.col<-sort(table(unlist(lapply(all.maps2, colnames))), decreasing=TRUE)
-#subset columns that are in every study
-com.col<-com.col[which(com.col==49)]
-com.col<-names(com.col)
-lapply(all.maps2, function(x) head(x[ ,which(colnames(x) %in% com.col)], 2))
-#interesting, but kind of a pain...
+submaps1<-which(lapply(dat1.class, function(x) isTRUE(all.equal(x, dat1.class)))==FALSE)
+submaps2<-which(lapply(dat2.class, function(x) isTRUE(all.equal(x, dat1.class)))==FALSE)
 
-#kinda want to screen for outliers, easiest with everything in one dataframe...
+submaps1<-which(!dat1.class %in% dat2.class) 
+submaps2<-which(!dat2.class %in% dat1.class)
+map.class1[[i]]<-colnames(dat[[1]][submaps1])
+map.class2[[i]]<-colnames(dat[[45]][submaps2])
 
-#merge all edited mapping files into one dataframe
-#emp.map<-Reduce(function(x, y) merge(x, y, all=TRUE), all.maps2)
+#ok, start with first dataset
+map.class1<-list()
 
-#finally realized what the warning messages I was getting with
-#above code were for!
-#data frames with same column name, but different class were
-#not merging correctly and values were being converted to NA
-#here http://stackoverflow.com/questions/1632772/appending-rows-to-a-dataframe-the-factor-problem
-
-#so need to find which columns in which data frames have different classes...
-#uh...
+for(i in 2:length(all.maps)){
+	all.maps.cnames<-colnames(all.maps[[1]]
+														[which(unlist(lapply(all.maps[1], colnames)) %in%  
+																	 	unlist(lapply(all.maps[i], colnames)))])
+	dat1.class<-lapply(all.maps[[1]][all.maps.cnames], class)
+	dat2.class<-lapply(all.maps[[i]][all.maps.cnames], class)
+	dat1.class<-unlist(dat1.class)
+	dat2.class<-unlist(dat2.class)
+	map.class1[[i]]<-cbind(dat1.class[which(!dat1.class==dat2.class)], 
+												 dat2.class[which(!dat2.class==dat1.class)])
+	
+}
+map.class1
+#haha, and this works
