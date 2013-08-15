@@ -38,6 +38,9 @@ setwd("~/EarthMicrobiomeProject/R/EMPmetadataReport")
 emp.map<-Reduce(function(x, y) merge(x, y, all=TRUE), all.maps)
 #well no more warnings, so character/ factor resolved
 
+#search colnames
+colnames(emp.map)[grep('contact', colnames(emp.map), ignore.case=TRUE)]
+
 #explore data
 #make a list of how many values are NA out of total
 unlist(lapply(all.maps, function(x) paste(length(which(is.na(x))), 
@@ -176,35 +179,8 @@ sort(table(unlist(col.class.dif)))
 #so it is mostly depth and a few others
 
 #look at just these columns across studes
-unique(unlist(col.class.dif))
 col.class.dif<-unique(unlist(col.class.dif))
 
-#too volumous to look at all, select one at a time
-check.find<-lapply(all.maps, function(x) {
-	isTRUE(col.class.dif[2] %in% colnames(x))})
-
-check.val<-lapply(all.maps, function(x) {head(x[colnames(x) %in% 
-			col.class.dif[2]], 1)})
-#compare classes
-check.class<-lapply(all.maps, function(x) {lapply(x[colnames(x) %in% 
-					col.class.dif[2]], class)})
-
-length(unlist(check.find)) 
-length(unlist(check.val))
-length(unlist(check.class)) 
-
-cbind(check.find, c(check.val))
-
-names(check.val)<-paste("map", 1:49, sep="")
-check.val[which(lapply(check.val, length)==0)]<-NA
-unlist(check.val)
-
-study_class_diff_table<-data.frame(TITLE=unlist(lapply(all.maps, function(x) unique(x[,"TITLE"]))))
-study_class_diff_tableM<-cbind(study_class_diff_table, 
-															 paste(col.class.dif[1], ".ex", sep="")=unlist(check.val))
-
-#do this in a loop
-#look at just these columns across studes
 l1 <- vector('list', 11)
 
 for(i in 1:length(col.class.dif)){
@@ -215,7 +191,7 @@ for(i in 1:length(col.class.dif)){
 	#give elements names
 	#names(check.val)<-paste("map", 1:49, sep="")
 	#replace empty data frames with NA
-	check.val[which(lapply(check.val, length)==0)]<-NA
+	check.val[which(lapply(check.val, length)==0)]<-"No Field"
 	
 	#build table
 	l1[[i]]<-unlist(check.val)
@@ -231,7 +207,7 @@ for(i in 1:length(col.class.dif)){
 	check.class<-lapply(all.maps, function(x) {lapply(x[colnames(x) %in% 
 								col.class.dif[i]], class)})
 	#convert empty values to NA
-	check.class[which(lapply(check.class, length)==0)]<-NA
+	check.class[which(lapply(check.class, length)==0)]<-"No Field"
 	
 	l2[[i]]<-unlist(check.class)
 	names(l2[i])<-paste(col.class.dif[i], ".class", sep="")
@@ -256,3 +232,162 @@ write.csv(study_class_diff_table,
 													"outputs/study_class_diff_table.csv", sep="/")), 
 					row.names=FALSE)
 
+#nice thought, not much better...
+#study_class_diff_table.melt<-melt(data.frame(TITLE=study_class_diff_table[,"TITLE"], l2), id.vars="TITLE")
+
+#study_class_diff_table.cast<-dcast(study_class_diff_table.melt, variable~ TITLE, value.var="value")
+#head(study_class_diff_table.cast)
+
+#investigate all of the most common fields using this script...
+col.comm<-c(study_column_table[1:40,1], study_column_table[,3])
+col.comm<-col.comm[1:43]
+#add contact fields (mostly missing...?)
+col.comm<-c(col.comm, "PRINCIPAL_INVESTIGATOR_CONTACT", 
+						"LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")
+
+l1 <- vector('list', 43)
+
+for(i in 1:length(col.comm)){
+	
+	#get example of values in column for each data frame
+	check.val<-lapply(all.maps, function(x) {head(x[colnames(x) %in% 
+										col.comm[i]], 1)})
+	#give elements names
+	#names(check.val)<-paste("map", 1:49, sep="")
+	#replace empty data frames with NA
+	check.val[which(lapply(check.val, length)==0)]<-"No Field"
+	
+	#build table
+	l1[[i]]<-unlist(check.val)
+	names(l1[i])<-paste(col.comm[i], ".ex", sep="")
+	
+}
+
+
+l2 <- vector('list', 43)
+for(i in 1:length(col.comm)){
+	
+	#get class of each column for each data frame
+	check.class<-lapply(all.maps, function(x) {lapply(x[colnames(x) %in% 
+																												col.comm[i]], class)})
+	#convert empty values to NA
+	check.class[which(lapply(check.class, length)==0)]<-"No Field"
+	
+	l2[[i]]<-unlist(check.class)
+	names(l2[i])<-paste(col.comm[i], ".class", sep="")
+	
+}
+
+#create table
+l1<-data.frame(l1)
+colnames(l1)<-paste(col.comm, ".ex", sep="")
+
+l2<-data.frame(l2)
+colnames(l2)<-paste(col.comm, ".class", sep="")
+
+study_class_comm_col_table<-data.frame(TITLE=unlist(lapply(all.maps, function(x) unique(x[,"TITLE"]))))
+study_class_comm_col_table<-cbind(study_class_comm_col_table, l1, l2)
+
+#sort by column name 
+study_class_comm_col_table<-study_class_comm_col_table[, c("TITLE", sort(colnames(study_class_comm_col_table)[2:87]))]
+#export
+write.csv(study_class_comm_col_table, 
+					file.path(paste(getwd(), 
+													"outputs/study_class_comm_col_table.csv", sep="/")), 
+					row.names=FALSE)
+
+#can create list of studies and key data to export as report?
+test<-list(list(TITLE="TITLE1", CONTACT=c("Contact", "No Field", NA), 
+								RUN_DATE=2007, PRIMERS=NA), 
+					 list(TITLE="TITLE1", CONTACT=c("Contact", "No Field", NA), 
+					 		 RUN_DATE="8/24/2007", PRIMERS="FWD:GTGCCAGCMGCCGCGGTAA; REV:GGACTACHVGGGTWTCTAAT"))
+
+test<-lapply(all.maps, function(x) list(TITLE=unique(x[,"TITLE"]),			
+	CONTACTS=paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
+	RUN_DATE=ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), paste(range(x[,"RUN_DATE"]), collapse="-"), "No Field"),
+	RUN_DATE.class=ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), class(x[,"RUN_DATE"]), "No Field"),
+	DEPTH=ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), paste(range(x[,"DEPTH"]), collapse="-"), "No Field"),
+	DEPTH.class=ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), class(x[,"DEPTH"]), "No Field"),
+	BREAK=""																	
+))
+
+
+test<-lapply(all.maps, function(x) list(			
+			CONTACTS=paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
+			RUN_DATE=ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), paste(range(x[,"RUN_DATE"]), collapse="-"), "No Field"),
+			RUN_DATE.class=ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), class(x[,"RUN_DATE"]), "No Field"),
+			DEPTH=ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), paste(range(x[,"DEPTH"]), collapse="-"), "No Field"),
+			DEPTH.class=ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), class(x[,"DEPTH"]), "No Field"),
+			BREAK=""																	
+))
+
+names(test)<-unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
+
+ifelse(TRUE %in% (colnames(all.maps[[1]]) %in% "RUN_DATE"), paste(range(all.maps[[1]][,"RUN_DATE"]), collapse="-"), "No Field")
+summary(all.maps[[1]][,"RUN_DATE"])
+all.maps[[1]][,"RUN_DATE"]
+table(all.maps[[1]][,"RUN_DATE"])
+cat(range(all.maps[[1]][,"RUN_DATE"]))
+head(unique(all.maps[[2]][,"TITLE"]),1)
+
+#export
+wb = loadWorkbook("EMP_metadata_issues.xlsx", create = TRUE)
+# Create a new sheet
+createSheet(wb, name = "mysheet")
+# cumulative length (rows) of matrices
+# +2 = 1 for list names, 1 for header row
+cumlen = cumsum(c(1, head(sapply(test, length), n = -1) + 2))
+#cumlen = cumsum(c(1, rep(2,48) + 2))
+
+# Write data rows (implicitly vectorized!)
+writeWorksheet(wb, data = test, sheet = "mysheet", startRow = cumlen + 1, header = TRUE, rownames=lapply(test, rownames))
+# Write list names
+writeWorksheet(wb, data = as.list(names(test)), sheet = "mysheet", startRow = cumlen, header = FALSE)
+saveWorkbook(wb)
+
+#some other attempts
+write.table(unlist(test))
+class(unlist(test))
+test.names<-unlist(test)
+test.names<-unlist(test.names$names)
+test<-cbind(test.names, unlist(test))
+class(test.bind)
+
+#test<-data.frame(test)
+test.bind<-cbind(unlist(test$names), unlist(test))
+test.bind<-cbind(rownames(test.bind), test.bind)
+colnames(test.bind)<-c("FIELD", "VALUE")
+rownames(test.bind)<-seq(1:343)
+
+write.table(test, 
+					file.path(paste(getwd(), 
+													"outputs/EMP_metadata_issues.csv", sep="/")), 
+					row.names=FALSE, sep=",")
+
+test.data.frame<-do.call("rbind", test)
+write.csv(test.data.frame, 
+					file.path(paste(getwd(), 
+													"outputs/EMP_metadata_issues.csv", sep="/")), 
+					row.names=TRUE)
+
+test<-lapply(all.maps, function(x) data.frame(Value=c(
+	paste(unique(x[,"TITLE"]), collapse=""),
+	paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
+	ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), paste(range(x[,"RUN_DATE"]), collapse="-"), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), class(x[,"RUN_DATE"]), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), paste(range(x[,"DEPTH"]), collapse="-"), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), class(x[,"DEPTH"]), "No Field"),
+	paste("")),																						
+																							row.names=c("TITLE","CONTACTS", "RUN_DATE","RUN_DATE.class", "DEPTH","DEPTH.class", "break")  																	
+))
+
+
+test.data.frame<-do.call("rbind", test)
+class(test.data.frame)
+test.data.frame$Field<-rep(c("TITLE", "CONTACTS", "RUN_DATE","RUN_DATE.class", "DEPTH","DEPTH.class", ""), 49)
+test.data.frame<-test.data.frame[,c("Field", "Value")]
+
+write.csv(test.data.frame, 
+					file.path(paste(getwd(), 
+													"outputs/EMP_metadata_issues.csv", sep="/")), 
+					row.names=FALSE)
