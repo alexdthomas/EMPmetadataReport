@@ -31,6 +31,9 @@ for (i in 1:length(map.file.names)){
 	all.maps[[i]]<-assign(paste("map", i, sep=""), read.delim(map.file.names[i], quote="", stringsAsFactors=FALSE))
 }
 
+#name studies in list
+names(all.maps)<-unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
+
 #reset working directory 
 setwd("~/EarthMicrobiomeProject/R/EMPmetadataReport")
 
@@ -111,7 +114,7 @@ rownames(study_column_table)<-as.character(1:nrow(study_column_table))
 #reorder
 study_column_table<-study_column_table[,c(2,1)]
 #subset to fit on MSword page, place side by side
-study_column_table<-cbind(study_column_table[1:40,], study_column_table[41:80,])
+study_column_table<-cbind(study_column_table[1:38,], study_column_table[39:76,])
 
 #add a little note, how many columns not shown...
 study_column_table<-rbind(study_column_table, 
@@ -297,97 +300,112 @@ write.csv(study_class_comm_col_table,
 					row.names=FALSE)
 
 #can create list of studies and key data to export as report?
-test<-list(list(TITLE="TITLE1", CONTACT=c("Contact", "No Field", NA), 
-								RUN_DATE=2007, PRIMERS=NA), 
-					 list(TITLE="TITLE1", CONTACT=c("Contact", "No Field", NA), 
-					 		 RUN_DATE="8/24/2007", PRIMERS="FWD:GTGCCAGCMGCCGCGGTAA; REV:GGACTACHVGGGTWTCTAAT"))
 
-test<-lapply(all.maps, function(x) list(TITLE=unique(x[,"TITLE"]),			
-	CONTACTS=paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
-	RUN_DATE=ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), paste(range(x[,"RUN_DATE"]), collapse="-"), "No Field"),
-	RUN_DATE.class=ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), class(x[,"RUN_DATE"]), "No Field"),
-	DEPTH=ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), paste(range(x[,"DEPTH"]), collapse="-"), "No Field"),
-	DEPTH.class=ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), class(x[,"DEPTH"]), "No Field"),
-	BREAK=""																	
-))
-
-
-test<-lapply(all.maps, function(x) list(			
-			CONTACTS=paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
-			RUN_DATE=ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), paste(range(x[,"RUN_DATE"]), collapse="-"), "No Field"),
-			RUN_DATE.class=ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), class(x[,"RUN_DATE"]), "No Field"),
-			DEPTH=ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), paste(range(x[,"DEPTH"]), collapse="-"), "No Field"),
-			DEPTH.class=ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), class(x[,"DEPTH"]), "No Field"),
-			BREAK=""																	
-))
-
-names(test)<-unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
-
-ifelse(TRUE %in% (colnames(all.maps[[1]]) %in% "RUN_DATE"), paste(range(all.maps[[1]][,"RUN_DATE"]), collapse="-"), "No Field")
-summary(all.maps[[1]][,"RUN_DATE"])
-all.maps[[1]][,"RUN_DATE"]
-table(all.maps[[1]][,"RUN_DATE"])
-cat(range(all.maps[[1]][,"RUN_DATE"]))
-head(unique(all.maps[[2]][,"TITLE"]),1)
-
-#export
-wb = loadWorkbook("EMP_metadata_issues.xlsx", create = TRUE)
-# Create a new sheet
-createSheet(wb, name = "mysheet")
-# cumulative length (rows) of matrices
-# +2 = 1 for list names, 1 for header row
-cumlen = cumsum(c(1, head(sapply(test, length), n = -1) + 2))
-#cumlen = cumsum(c(1, rep(2,48) + 2))
-
-# Write data rows (implicitly vectorized!)
-writeWorksheet(wb, data = test, sheet = "mysheet", startRow = cumlen + 1, header = TRUE, rownames=lapply(test, rownames))
-# Write list names
-writeWorksheet(wb, data = as.list(names(test)), sheet = "mysheet", startRow = cumlen, header = FALSE)
-saveWorkbook(wb)
-
-#some other attempts
-write.table(unlist(test))
-class(unlist(test))
-test.names<-unlist(test)
-test.names<-unlist(test.names$names)
-test<-cbind(test.names, unlist(test))
-class(test.bind)
-
-#test<-data.frame(test)
-test.bind<-cbind(unlist(test$names), unlist(test))
-test.bind<-cbind(rownames(test.bind), test.bind)
-colnames(test.bind)<-c("FIELD", "VALUE")
-rownames(test.bind)<-seq(1:343)
-
-write.table(test, 
-					file.path(paste(getwd(), 
-													"outputs/EMP_metadata_issues.csv", sep="/")), 
-					row.names=FALSE, sep=",")
-
-test.data.frame<-do.call("rbind", test)
-write.csv(test.data.frame, 
-					file.path(paste(getwd(), 
-													"outputs/EMP_metadata_issues.csv", sep="/")), 
-					row.names=TRUE)
-
-test<-lapply(all.maps, function(x) data.frame(Value=c(
-	paste(unique(x[,"TITLE"]), collapse=""),
+EMP_metadata_issues<-lapply(all.maps, function(x) data.frame(Value=c(
+	paste(unique(x[,"TITLE"]), collapse=" "),
 	paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
-	ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), paste(range(x[,"RUN_DATE"]), collapse="-"), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), class(x[,"RUN_DATE"]), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), paste(range(x[,"DEPTH"]), collapse="-"), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "COLLECTION_DATE"), paste(range(x[,"COLLECTION_DATE"]), collapse=" to "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "COLLECTION_DATE"), class(x[,"COLLECTION_DATE"]), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "SAMP_SIZE"), paste(range(x[,"SAMP_SIZE"]), collapse=" to "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), paste(range(x[,"DEPTH"]), collapse=" to "), "No Field"),
 	ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), class(x[,"DEPTH"]), "No Field"),
-	paste("")),																						
-																							row.names=c("TITLE","CONTACTS", "RUN_DATE","RUN_DATE.class", "DEPTH","DEPTH.class", "break")  																	
+	ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), paste(range(x[,"RUN_DATE"]), collapse=" to "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), class(x[,"RUN_DATE"]), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "SEQUENCING_METH"), paste(head(x[,"SEQUENCING_METH"], 1), collapse="  "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "LIBRARY_CONSTRUCTION_PROTOCOL"), paste(head(x[,"LIBRARY_CONSTRUCTION_PROTOCOL"], 1), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "PCR_PRIMERS"), paste(head(x[,"PCR_PRIMERS"], 1), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "PLATFORM"), paste(head(x[,"PLATFORM"], 1), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "RUN_CENTER"), paste(head(x[,"RUN_CENTER"], 1), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "SAMPLE_CENTER"), paste(head(x[,"SAMPLE_CENTER"], 1), collapse=" to "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "SAMPLE_LOCATION"), paste(head(x[,"SAMPLE_LOCATION"], 1), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "TARGET_GENE"), paste(head(x[,"TARGET_GENE"], 1), collapse=" "), "No Field"),
+	paste("")),	
+	#FIELD=c("TITLE","CONTACTS", "RUN_DATE","RUN_DATE.class", "DEPTH","DEPTH.class", "break"),  																	
+	row.names=c("TITLE", 
+							"CONTACTS", 
+							"COLLECTION_DATE_range", 
+							"COLLECTION_DATE_class", 
+							"SAMP_SIZE_range",
+							"DEPTH_range",
+							"DEPTH.class", 
+							"RUN_DATE_range",
+							"RUN_DATE.class",
+							"SEQUENCING_METH", 
+							"LIBRARY_CONSTRUCTION", 
+					  	"PCR_PRIMERS", 
+							"PLATFORM", 
+							"RUN_CENTER",  
+							"SAMPLE_CENTER", 
+							"SAMPLE_LOCATION", 
+							"TARGET_GENE", 
+							"")  																	
 ))
 
+names(EMP_metadata_issues)<-unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
 
-test.data.frame<-do.call("rbind", test)
-class(test.data.frame)
-test.data.frame$Field<-rep(c("TITLE", "CONTACTS", "RUN_DATE","RUN_DATE.class", "DEPTH","DEPTH.class", ""), 49)
-test.data.frame<-test.data.frame[,c("Field", "Value")]
+#test
+ifelse(TRUE %in% (colnames(all.maps[[1]]) %in% "RUN_CENTER"), paste(head(all.maps[[1]][,"RUN_CENTER"]), 1), "No Field")
+ifelse(TRUE %in% (colnames(all.maps[[1]]) %in% "RUN_CENTER"), paste(range(all.maps[[1]][,"RUN_CENTER"]), collaps= ""), "No Field")
 
-write.csv(test.data.frame, 
+ifelse(TRUE %in% (colnames(all.maps[[1]]) %in% "RUN_CENTER"), class(all.maps[[1]][,"RUN_CENTER"]), "No Field")
+
+#lapply(all.maps, function(x) paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "))
+#all.maps[["EPOCA_Svalbard2018"]][,colnames(all.maps[["EPOCA_Svalbard2018"]]) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]
+
+#convert to data frame and export
+EMP_metadata_issues.df<-do.call("rbind", EMP_metadata_issues)
+EMP_metadata_issues.df$Field<-rep(c("TITLE", 
+																		"CONTACTS", 
+																		"COLLECTION_DATE_range", 
+																		"COLLECTION_DATE_class", 
+																		"SAMP_SIZE_range",
+																		"DEPTH_range",
+																		"DEPTH.class", 
+																		"RUN_DATE_range",
+																		"RUN_DATE.class",
+																		"SEQUENCING_METH", 
+																		"LIBRARY_CONSTRUCTION", 
+																		"PCR_PRIMERS", 
+																		"PLATFORM", 
+																		"RUN_CENTER",  
+																		"SAMPLE_CENTER", 
+																		"SAMPLE_LOCATION", 
+																		"TARGET_GENE", 
+																		""), 49)
+
+EMP_metadata_issues.df<-EMP_metadata_issues.df[,c("Field", "Value")]
+
+write.csv(EMP_metadata_issues.df, 
 					file.path(paste(getwd(), 
 													"outputs/EMP_metadata_issues.csv", sep="/")), 
 					row.names=FALSE)
+
+#this seemed useful, but in the end not, may want later though
+#http://stackoverflow.com/questions/13006909/export-a-list-of-matrices-nicely-to-the-same-worksheet-in-excel
+
+#wb = loadWorkbook("matrix.xlsx", create = TRUE)
+# Create a new sheet
+#createSheet(wb, name = "mysheet")
+# cumulative length (rows) of matrices
+# +2 = 1 for list names, 1 for header row
+#cumlen = cumsum(c(1, head(sapply(EMP_metadata_issues, nrow), n = -1) + 2))
+# Write data rows (implicitly vectorized!)
+#writeWorksheet(wb, data = EMP_metadata_issues, sheet = "mysheet", startRow = cumlen + 1, header = FALSE, rownames=lapply(EMP_metadata_issues, rownames))
+# Write list names
+#writeWorksheet(wb, data = as.list(names(EMP_metadata_issues)), sheet = "mysheet", startRow = cumlen, header = FALSE)
+#saveWorkbook(wb)
+
+#check out some really bad ones...
+#tibetan_plateau_salt_lake_sediment
+head(all.maps[["tibetan_plateau_salt_lake_sediment"]])
+head(all.maps[[22]])
+colnames(all.maps[["tibetan_plateau_salt_lake_sediment"]])
+colnames(all.maps[[1]])
+all.maps[["tibetan_plateau_salt_lake_sediment"]]["COLLECTION_DATE"]
+
+#Kilauea geothermal soils and biofilms
+head(all.maps[["Kilauea geothermal soils and biofilms"]])
+colnames(all.maps[["Kilauea geothermal soils and biofilms"]])
+
+dim(all.maps[["Environmental metagenomic interrogation of Thar desert microbial communities"]])
+all.maps[["Environmental metagenomic interrogation of Thar desert microbial communities"]]
