@@ -471,6 +471,33 @@ table(unlist(lapply(all.maps[chem.maps], function(x) colnames(x[colnames(x) %in%
 lapply(all.maps[chem.maps], function(x) head(x[colnames(x) %in% c("TOT_NITRO", "TOT_N_METH", "TOT_NITRO_UNITS")], 10))
 #well, that instersting, values don't mean much without units and methods...
 
+#export table for EMP chemistry fields
+chem.maps.df<-lapply(all.maps[chem.maps], function(x) head(x[colnames(x) %in% c("TITLE", col.chem)], 1))
+unlist(chem.maps.df)
+melt(chem.maps.df)
+
+chem.maps.df <- lapply(chem.maps.df, unlist)
+chem.max <- max(sapply(chem.maps.df, length))
+do.call(rbind, lapply(chem.maps.df, function(z)c(z, rep(NA, chem.max-length(z)))))
+
+chem.maps.df<-Reduce(function(x, y) merge(x, y, all=TRUE), chem.maps.df)
+
+chem.maps.df<-vector('list', length(chem.maps))
+
+chem.maps.df<-lapply(all.maps[chem.maps], function(x) data.frame(
+	TITLE=paste(unique(x[,"TITLE"]), collapse=" "),
+	CONTACTS=paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "))	
+)
+
+chem.maps.df<-lapply(all.maps[chem.maps], "[[", )
+	lapply(col.chem, function(i) ifelse(TRUE %in% (colnames(x) %in% col.chem[i]), paste(head(x[,"COLLECTION_DATE"], 1), collapse=" "), "No Field"))
+	
+	
+for(i in 1:length(col.chem)){
+			paste(col.chem[i]) = ifelse(TRUE %in% (colnames(x) %in% col.chem[i]), paste(head(x[,"COLLECTION_DATE"], 1), collapse=" "), "No Field")
+		)
+}
+	
 #search colnames
 col.n.comm[grep('DATE', col.n.comm, fixed=TRUE)]
 #yup, dates
