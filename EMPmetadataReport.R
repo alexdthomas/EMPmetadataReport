@@ -466,38 +466,109 @@ chem.maps<-names(chem.maps[which(!chem.maps %in% "No Field")])
 lapply(all.maps[chem.maps], function(x) head(x[colnames(x) %in% col.chem], 2))
 #not many columns shared across studies, see if can focus
 length(chem.maps) #14 studies have any of these columns
-table(unlist(lapply(all.maps[chem.maps], function(x) colnames(x[colnames(x) %in% col.chem]))))
+as.matrix(table(unlist(lapply(all.maps[chem.maps], function(x) colnames(x[colnames(x) %in% col.chem])))))
 #10 have TOT_NITRO, only 7 have TOT_N_METH and only 1 has TOT_NITRO_UNITS
 lapply(all.maps[chem.maps], function(x) head(x[colnames(x) %in% c("TOT_NITRO", "TOT_N_METH", "TOT_NITRO_UNITS")], 10))
 #well, that instersting, values don't mean much without units and methods...
 
 #export table for EMP chemistry fields
-chem.maps.df<-lapply(all.maps[chem.maps], function(x) head(x[colnames(x) %in% c("TITLE", col.chem)], 1))
-unlist(chem.maps.df)
-melt(chem.maps.df)
+EMP_chem_fq<-as.matrix(table(unlist(lapply(all.maps[chem.maps], function(x) colnames(x[colnames(x) %in% col.chem])))))
 
-chem.maps.df <- lapply(chem.maps.df, unlist)
-chem.max <- max(sapply(chem.maps.df, length))
-do.call(rbind, lapply(chem.maps.df, function(z)c(z, rep(NA, chem.max-length(z)))))
+EMP_chem_table<-lapply(all.maps[chem.maps], function(x) cbind(
+	head(x[,"TITLE"], 1),
+	ifelse(TRUE %in% (colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")), 
+														 paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "), 
+														 "No Contacts")
+))
 
-chem.maps.df<-Reduce(function(x, y) merge(x, y, all=TRUE), chem.maps.df)
+EMP_chem_table<-do.call("rbind", EMP_chem_table)
 
-chem.maps.df<-vector('list', length(chem.maps))
-
-chem.maps.df<-lapply(all.maps[chem.maps], function(x) data.frame(
-	TITLE=paste(unique(x[,"TITLE"]), collapse=" "),
-	CONTACTS=paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "))	
-)
-
-chem.maps.df<-lapply(all.maps[chem.maps], "[[", )
-	lapply(col.chem, function(i) ifelse(TRUE %in% (colnames(x) %in% col.chem[i]), paste(head(x[,"COLLECTION_DATE"], 1), collapse=" "), "No Field"))
-	
-	
 for(i in 1:length(col.chem)){
-			paste(col.chem[i]) = ifelse(TRUE %in% (colnames(x) %in% col.chem[i]), paste(head(x[,"COLLECTION_DATE"], 1), collapse=" "), "No Field")
-		)
+	EMP_chem_table<- cbind(EMP_chem_table, unlist(lapply(all.maps[chem.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% col.chem[i]), paste(summary(x[,col.chem[i]]), collapse=" "), "No Field")), use.names=FALSE))
+	#colnames(chem.maps.df)[i]<-col.chem[i]
 }
-	
+colnames(EMP_chem_table)<-c("TITLE", "CONTACTS", col.chem)
+EMP_chem_table<-as.data.frame(EMP_chem_table)
+#this is actually pretty hard to read, maybe a better way
+
+#well this is the easy way to do what I did above... 
+EMP_chem_table<-lapply(all.maps[chem.maps], function(x) colnames(x[colnames(x) %in% col.chem]))
+EMP_chem_table<-melt(EMP_chem_table)
+EMP_chem_table<-dcast(EMP_chem_table, L1~value)
+EMP_chem_table[is.na(EMP_chem_table)]<-"No Field"
+#without contacts... but can add
+#can't change what is in field though...
+EMP_chem_table$CONTACTS<-do.call("rbind", lapply(all.maps[chem.maps], function(x) cbind(
+	ifelse(TRUE %in% (colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")), 
+				 paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "), 
+				 "No Contacts")
+)))
+#fix title and order
+colnames(EMP_chem_table)[1]<-"TITLE"
+EMP_chem_table<-EMP_chem_table[, c("TITLE", "CONTACTS", col.chem)]
+
+colnames(EMP_chem_table)
+#just nitrogen
+EMP_chem_table[]
+
+write.csv(EMP_nitro_table, 
+					file.path(paste(getwd(), "outputs/EMP_nitro_table.csv", sep="/")), 
+					row.names=FALSE)
+
+
+#just nitrogen?
+col.n.comm[grep('NITRO', col.n.comm, fixed=TRUE)]
+
+#look at metadata with nitrogen
+col.nitro<-col.n.comm[grep('NITRO', col.n.comm, fixed=TRUE)]
+col.nitro<-c(col.nitro, "TOT_N_METH")
+nitro.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.nitro), head(x[,"TITLE"], 1), "No Field"))
+nitro.maps<-names(nitro.maps[which(!nitro.maps %in% "No Field")])
+lapply(all.maps[nitro.maps], function(x) head(x[colnames(x) %in% col.nitro], 2))
+#not many columns shared across studies, see if can focus
+length(nitro.maps) #15 studies have some nitrogen
+as.matrix(table(unlist(lapply(all.maps[nitro.maps], function(x) colnames(x[colnames(x) %in% col.nitro])))))
+#10 have TOT_NITRO, only 7 have TOT_N_METH and only 1 has TOT_NITRO_UNITS
+
+#export table for EMP nitrogen fields
+EMP_nitro_fq<-as.matrix(table(unlist(lapply(all.maps[nitro.maps], function(x) colnames(x[colnames(x) %in% col.nitro])))))
+
+EMP_nitro_table<-lapply(all.maps[nitro.maps], function(x) cbind(
+	head(x[,"TITLE"], 1),
+	ifelse(TRUE %in% (colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")), 
+				 paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "), 
+				 "No Contacts")
+))
+
+EMP_nitro_table<-do.call("rbind", EMP_nitro_table)
+
+#remove character columns and add later
+col.nitro<-col.nitro[which(!col.nitro %in% c("NITRO_ORG_CARB_UNIT", "TOT_NITRO_UNIT", "TOT_NITRO_UNITS", "TOT_N_METH"))]
+										 
+for(i in 1:length(col.nitro)){
+	EMP_nitro_table<- cbind(EMP_nitro_table, unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% col.nitro[i]), paste(range(x[,col.nitro[i]]), collapse=" to "), "No Field")), use.names=FALSE))
+	#colnames(nitro.maps.df)[i]<-col.nitro[i]
+}
+colnames(EMP_nitro_table)<-c("TITLE", "CONTACTS", col.nitro)
+EMP_nitro_table<-as.data.frame(EMP_nitro_table)
+
+EMP_nitro_table$NITRO_ORG_CARB_UNIT<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "NITRO_ORG_CARB_UNIT"), paste(head(x[,"NITRO_ORG_CARB_UNIT"], 1), collapse=" "), "No Field")), use.names=FALSE)
+EMP_nitro_table$TOT_NITRO_UNIT<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO_UNIT"), paste(head(x[,"TOT_NITRO_UNIT"], 1), collapse=" "), "No Field")), use.names=FALSE)
+EMP_nitro_table$TOT_NITRO_UNITS<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO_UNITS"), paste(head(x[,"TOT_NITRO_UNITS"], 1), collapse=" "), "No Field")), use.names=FALSE)
+EMP_nitro_table$TOT_N_METH<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_N_METH"), paste(head(x[,"TOT_N_METH"], 1), collapse=" "), "No Field")), use.names=FALSE)
+
+colnames(EMP_nitro_table)
+EMP_nitro_table<-EMP_nitro_table[,c("TITLE", "CONTACTS", "TOT_NITRO", 
+								 "TOT_NITRO_PERCENT", "TOT_NITRO_UNIT", "TOT_NITRO_UNITS", 
+								 "TOT_N_METH", "ORG_NITRO", "NITROGEN_SATURATION", 
+								 "NITRO_ORG_CARB_UNIT", "MICROBIAL_NITRO", "CARB_NITRO_RATIO")]
+#just nitrogen
+write.csv(EMP_nitro_table, 
+					file.path(paste(getwd(), "outputs/EMP_nitro_table.csv", sep="/")), 
+					row.names=FALSE)
+
+all.maps[["Fermilab_spatial_study"]]["TOT_NITRO"]
+
 #search colnames
 col.n.comm[grep('DATE', col.n.comm, fixed=TRUE)]
 #yup, dates
@@ -584,6 +655,5 @@ length(unit.maps)
 as.matrix(sort(table(unlist(lapply(all.maps[unit.maps], function(x) colnames(x[colnames(x) %in% col.unit])))), decreasing=TRUE))
 lapply(all.maps[unit.maps], function(x) head(x[colnames(x) %in% col.unit], 2))
 #can at least find sudies that have units...
-
 
 
