@@ -102,7 +102,6 @@ write.csv(study_count_NA_table,
 #now a little more depth...
 #check out column names
 study_column_table<-sort(table(unlist(lapply(all.maps, colnames))), decreasing=TRUE)
-
 #clean up for exporting
 study_column_table<-as.data.frame(study_column_table)
 #study names are currently row names, add as column
@@ -184,7 +183,7 @@ sort(table(unlist(col.class.dif)))
 #look at just these columns across studes
 col.class.dif<-unique(unlist(col.class.dif))
 
-l1 <- vector('list', 11)
+l1 <- vector('list', length(col.class.dif))
 
 for(i in 1:length(col.class.dif)){
 	
@@ -203,7 +202,7 @@ for(i in 1:length(col.class.dif)){
 }
 
 
-l2 <- vector('list', 11)
+l2 <- vector('list', length(col.class.dif))
 for(i in 1:length(col.class.dif)){
 	
 	#get class of each column for each data frame
@@ -242,13 +241,14 @@ write.csv(study_class_diff_table,
 #head(study_class_diff_table.cast)
 
 #investigate all of the most common fields using this script...
-col.comm<-c(study_column_table[1:40,1], study_column_table[,3])
-col.comm<-col.comm[1:43]
+#select fields present in greater than half of the studies
+col.comm<-names(which(sort(table(unlist(lapply(all.maps, colnames))), decreasing=TRUE)>length(all.maps)/2))
+
 #add contact fields (mostly missing...?)
 col.comm<-c(col.comm, "PRINCIPAL_INVESTIGATOR_CONTACT", 
 						"LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")
 
-l1 <- vector('list', 43)
+l1 <- vector('list', length(col.comm))
 
 for(i in 1:length(col.comm)){
 	
@@ -267,7 +267,7 @@ for(i in 1:length(col.comm)){
 }
 
 
-l2 <- vector('list', 43)
+l2 <- vector('list', length(col.comm))
 for(i in 1:length(col.comm)){
 	
 	#get class of each column for each data frame
@@ -409,3 +409,29 @@ colnames(all.maps[["Kilauea geothermal soils and biofilms"]])
 
 dim(all.maps[["Environmental metagenomic interrogation of Thar desert microbial communities"]])
 all.maps[["Environmental metagenomic interrogation of Thar desert microbial communities"]]
+
+colnames(all.maps[["Fermilab_spatial_study"]])
+head(all.maps[["Fermilab_spatial_study"]])
+
+colnames(all.maps[["Great Lake Microbiome"]])
+head(all.maps[["Great Lake Microbiome"]])
+
+write.csv(head(all.maps[["tibetan_plateau_salt_lake_sediment"]]), 
+					file.path(paste(getwd(), 
+													"outputs/tibetan_plateau_salt_lake_sediment_head.csv", sep="/")), 
+					row.names=FALSE)
+
+write.csv(head(all.maps[["Kilauea geothermal soils and biofilms"]]), 
+					file.path(paste(getwd(), 
+													"outputs/Kilauea_geothermal_soils_and_biofilms_head.csv", sep="/")), 
+					row.names=FALSE)
+
+write.csv(head(all.maps[["Fermilab_spatial_study"]]), 
+					file.path(paste(getwd(), 
+													"outputs/Fermilab_spatial_study_head.csv", sep="/")), 
+					row.names=FALSE)
+
+write.csv(head(all.maps[["Great Lake Microbiome"]]), 
+					file.path(paste(getwd(), 
+													"outputs/Great_Lake_Microbiome_head.csv", sep="/")), 
+					row.names=FALSE)
