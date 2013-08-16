@@ -31,9 +31,6 @@ for (i in 1:length(map.file.names)){
 	all.maps[[i]]<-assign(paste("map", i, sep=""), read.delim(map.file.names[i], quote="", stringsAsFactors=FALSE))
 }
 
-#name studies in list
-names(all.maps)<-unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
-
 #reset working directory 
 setwd("~/EarthMicrobiomeProject/R/EMPmetadataReport")
 
@@ -79,6 +76,9 @@ all.maps[[16]][,"TITLE"]<-"EPOCA_Svalbard2018"
 #and titles
 unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
 #ah good
+
+#name studies in list
+names(all.maps)<-unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
 
 #make a little table...
 study_count_NA_table<-
@@ -435,3 +435,128 @@ write.csv(head(all.maps[["Great Lake Microbiome"]]),
 					file.path(paste(getwd(), 
 													"outputs/Great_Lake_Microbiome_head.csv", sep="/")), 
 					row.names=FALSE)
+
+#try to evaluate all other columns across studies
+col.n.comm<-names(which(sort(table(unlist(lapply(all.maps, colnames))), decreasing=TRUE)<=length(all.maps)/2))
+
+#as all spaces between words are '_' can split all column names
+#by '_' and find common words for fields might indicate a pattern to data
+col.n.comm.sp<-strsplit(col.n.comm, "_")
+head(col.n.comm.sp)
+col.n.comm.sp<-unlist(col.n.comm.sp)
+col.n.comm.sp<-as.matrix(sort(table(col.n.comm.sp), decreasing=TRUE))
+#this is useful...
+#frequencies...
+table(col.n.comm.sp)
+#start with most frequent
+col.n.comm.sp[col.n.comm.sp>8, ]
+length(col.n.comm.sp[col.n.comm.sp>8, ])
+
+col.n.comm[grep(paste(names(col.n.comm.sp[col.n.comm.sp>8, ]), collapse="|"), col.n.comm, ignore.case=TRUE)]
+#99 columns contain the 9 most frequent words
+
+#search colnames
+col.n.comm[grep('TOT', col.n.comm, fixed=TRUE)]
+#well here's some chemistry
+col.chem<-col.n.comm[grep('TOT', col.n.comm, fixed=TRUE)]
+col.chem<-col.chem[which(!col.chem %in% c("TOTAL_PHYTOPLANKTON_COUNT", "TOTAL_BACTERIA_COUNT", "DISTANCETOTRANSECTA_CM"))]
+#look at metadata with chemistry
+chem.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.chem), head(x[,"TITLE"], 1), "No Field"))
+chem.maps<-names(chem.maps[which(!chem.maps %in% "No Field")])
+lapply(all.maps[chem.maps], function(x) head(x[colnames(x) %in% col.chem], 2))
+#not many columns shared across studies, see if can focus
+length(chem.maps) #14 studies have any of these columns
+table(unlist(lapply(all.maps[chem.maps], function(x) colnames(x[colnames(x) %in% col.chem]))))
+#10 have TOT_NITRO, only 7 have TOT_N_METH and only 1 has TOT_NITRO_UNITS
+lapply(all.maps[chem.maps], function(x) head(x[colnames(x) %in% c("TOT_NITRO", "TOT_N_METH", "TOT_NITRO_UNITS")], 10))
+#well, that instersting, values don't mean much without units and methods...
+
+#search colnames
+col.n.comm[grep('DATE', col.n.comm, fixed=TRUE)]
+#yup, dates
+col.date<-col.n.comm[grep('DATE', col.n.comm, fixed=TRUE)]
+date.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.date), head(x[,"TITLE"], 1), "No Field"))
+date.maps<-names(date.maps[which(!date.maps %in% "No Field")])
+length(date.maps)
+#well, all 49 have some date field (knew that)
+sort(table(unlist(lapply(all.maps[date.maps], function(x) colnames(x[colnames(x) %in% col.date])))), decreasing=TRUE)
+#well, basically only COLLECTION_DATE and RUN_DATE, most of the rest look like Juan's
+
+#search colnames
+col.n.comm[grep('METH', col.n.comm, fixed=TRUE)]
+#pretty diverse, already looked at SEQUENCING_METH and chemistry *METH
+#some soil ones are ineresting
+#WATER_CONTENT_SOIL_METH, SOIL_TYPE_METH, TEXTURE_METH
+sort(table(unlist(lapply(all.maps, function(x) colnames(x[colnames(x) %in% c("WATER_CONTENT_SOIL_METH", "SOIL_TYPE_METH", "TEXTURE_METH")])))), decreasing=TRUE)
+lapply(all.maps, function(x) head(x[colnames(x) %in% c("WATER_CONTENT_SOIL_METH", "SOIL_TYPE_METH", "TEXTURE_METH")]))
+#well it's something...
+
+#search colnames
+col.n.comm[grep('SOIL', col.n.comm, fixed=TRUE)]
+#I like soil...
+col.soil<-col.n.comm[grep('SOIL', col.n.comm, fixed=TRUE)]
+soil.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.soil), head(x[,"TITLE"], 1), "No Field"))
+soil.maps<-names(soil.maps[which(!soil.maps %in% "No Field")])
+length(soil.maps)
+#hmm, 9 studies have any fields with soil...
+as.matrix(sort(table(unlist(lapply(all.maps[soil.maps], function(x) colnames(x[colnames(x) %in% col.soil])))), decreasing=TRUE))
+#and most of them only occur once 
+#again most common is WATER_CONTENT_SOIL (7), but only 4 have a method...
+lapply(all.maps[soil.maps], function(x) head(x[colnames(x) %in% col.soil], 2))
+
+#search colnames
+col.n.comm[grep('CARB', col.n.comm, fixed=TRUE)]
+#hmm, maybe TOT_ORG_CAB and ORG_CARB are duplicates
+col.carb<-col.n.comm[grep('CARB', col.n.comm, fixed=TRUE)]
+carb.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.carb), head(x[,"TITLE"], 1), "No Field"))
+carb.maps<-names(carb.maps[which(!carb.maps %in% "No Field")])
+length(carb.maps)
+#15 studies have fields related to carbon
+as.matrix(sort(table(unlist(lapply(all.maps[carb.maps], function(x) colnames(x[colnames(x) %in% col.carb])))), decreasing=TRUE))
+#the most common is TOT_ORG_CARB (8), however only 1 TOT_ORG_CARB_UNITS and no methods...
+
+#search colnames
+col.n.comm[grep('COUNT', col.n.comm, fixed=FALSE)]
+#note "COUNTY" is less frequent, not "COUNTRY"
+#includes many microbial counts, maybe interesting, but not right now...
+
+#search colnames
+col.n.comm[grep('TEMP', col.n.comm, fixed=FALSE)]
+#hey, here are some potential duplicates
+col.temp<-col.n.comm[grep('TEMP', col.n.comm, fixed=FALSE)]
+temp.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.temp), head(x[,"TITLE"], 1), "No Field"))
+temp.maps<-names(temp.maps[which(!temp.maps %in% "No Field")])
+length(temp.maps)
+#20 studies have temp data
+as.matrix(sort(table(unlist(lapply(all.maps[temp.maps], function(x) colnames(x[colnames(x) %in% col.temp])))), decreasing=TRUE))
+#what is differenve between "TEMP" and all other "*TEMP*"
+#ANNUAL_SEASON_TEMP vs. ANNUAL_TEMP vs. SEASON_TEMP
+#SOIL_TEMP vs. MEAN_SOIL_TEMP_DAY
+lapply(all.maps[temp.maps], function(x) head(x[colnames(x) %in% col.temp], 2))
+
+#search colnames
+col.n.comm[grep('SEASON', col.n.comm, fixed=FALSE)]
+#some duplicates from TEMP, and other climate data...
+col.season<-col.n.comm[grep('SEASON', col.n.comm, fixed=FALSE)]
+season.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.season), head(x[,"TITLE"], 1), "No Field"))
+season.maps<-names(season.maps[which(!season.maps %in% "No Field")])
+length(season.maps)
+#8 studies have season data
+as.matrix(sort(table(unlist(lapply(all.maps[season.maps], function(x) colnames(x[colnames(x) %in% col.season])))), decreasing=TRUE))
+lapply(all.maps[season.maps], function(x) head(x[colnames(x) %in% col.season], 2))
+#wonder what the methods were to find these seasonal values, but interesting
+
+#search colnames
+col.n.comm[grep('UNIT', col.n.comm, fixed=FALSE)]
+#some duplicates from TEMP, and other climate data...
+col.unit<-col.n.comm[grep('UNIT', col.n.comm, fixed=FALSE)]
+unit.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.unit), head(x[,"TITLE"], 1), "No Field"))
+unit.maps<-names(unit.maps[which(!unit.maps %in% "No Field")])
+length(unit.maps)
+#8 studies have unit data
+as.matrix(sort(table(unlist(lapply(all.maps[unit.maps], function(x) colnames(x[colnames(x) %in% col.unit])))), decreasing=TRUE))
+lapply(all.maps[unit.maps], function(x) head(x[colnames(x) %in% col.unit], 2))
+#can at least find sudies that have units...
+
+
+
