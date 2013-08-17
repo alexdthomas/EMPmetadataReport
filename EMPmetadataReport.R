@@ -508,25 +508,20 @@ colnames(EMP_chem_table)[1]<-"TITLE"
 EMP_chem_table<-EMP_chem_table[, c("TITLE", "CONTACTS", col.chem)]
 
 colnames(EMP_chem_table)
-#just nitrogen
-EMP_chem_table[]
-
-write.csv(EMP_nitro_table, 
-					file.path(paste(getwd(), "outputs/EMP_nitro_table.csv", sep="/")), 
-					row.names=FALSE)
 
 
 #just nitrogen?
 col.n.comm[grep('NITRO', col.n.comm, fixed=TRUE)]
 
-#look at metadata with nitrogen
-col.nitro<-col.n.comm[grep('NITRO', col.n.comm, fixed=TRUE)]
-col.nitro<-c(col.nitro, "TOT_N_METH")
+#look at metadata with nitrogen, make special list
+col.nitro<-c("TOT_NITRO", "TOT_NITRO_PERCENT", "TOT_NITRO_UNIT", "TOT_NITRO_UNITS", 
+						 "TOT_N_METH")
+
 nitro.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.nitro), head(x[,"TITLE"], 1), "No Field"))
 nitro.maps<-names(nitro.maps[which(!nitro.maps %in% "No Field")])
 lapply(all.maps[nitro.maps], function(x) head(x[colnames(x) %in% col.nitro], 2))
 #not many columns shared across studies, see if can focus
-length(nitro.maps) #15 studies have some nitrogen
+length(nitro.maps) #11 studies have some nitrogen
 as.matrix(table(unlist(lapply(all.maps[nitro.maps], function(x) colnames(x[colnames(x) %in% col.nitro])))))
 #10 have TOT_NITRO, only 7 have TOT_N_METH and only 1 has TOT_NITRO_UNITS
 
@@ -541,33 +536,37 @@ EMP_nitro_table<-lapply(all.maps[nitro.maps], function(x) cbind(
 ))
 
 EMP_nitro_table<-do.call("rbind", EMP_nitro_table)
-
-#remove character columns and add later
-col.nitro<-col.nitro[which(!col.nitro %in% c("NITRO_ORG_CARB_UNIT", "TOT_NITRO_UNIT", "TOT_NITRO_UNITS", "TOT_N_METH"))]
-										 
-for(i in 1:length(col.nitro)){
-	EMP_nitro_table<- cbind(EMP_nitro_table, unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% col.nitro[i]), paste(range(x[,col.nitro[i]]), collapse=" to "), "No Field")), use.names=FALSE))
-	#colnames(nitro.maps.df)[i]<-col.nitro[i]
-}
-colnames(EMP_nitro_table)<-c("TITLE", "CONTACTS", col.nitro)
 EMP_nitro_table<-as.data.frame(EMP_nitro_table)
-
-EMP_nitro_table$NITRO_ORG_CARB_UNIT<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "NITRO_ORG_CARB_UNIT"), paste(head(x[,"NITRO_ORG_CARB_UNIT"], 1), collapse=" "), "No Field")), use.names=FALSE)
+colnames(EMP_nitro_table)<-c("TITLE", "CONTACTS")
+#add NITRO fields
+EMP_nitro_table$TOT_NITRO<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO"), paste(range(x[,"TOT_NITRO"]), collapse=" to "), "No Field")), use.names=FALSE)
+EMP_nitro_table$TOT_NITRO_PERCENT<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO_PERCENT"), paste(range(x[,"TOT_NITRO_PERCENT"]), collapse=" to "), "No Field")), use.names=FALSE)
 EMP_nitro_table$TOT_NITRO_UNIT<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO_UNIT"), paste(head(x[,"TOT_NITRO_UNIT"], 1), collapse=" "), "No Field")), use.names=FALSE)
 EMP_nitro_table$TOT_NITRO_UNITS<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO_UNITS"), paste(head(x[,"TOT_NITRO_UNITS"], 1), collapse=" "), "No Field")), use.names=FALSE)
 EMP_nitro_table$TOT_N_METH<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_N_METH"), paste(head(x[,"TOT_N_METH"], 1), collapse=" "), "No Field")), use.names=FALSE)
 
-colnames(EMP_nitro_table)
-EMP_nitro_table<-EMP_nitro_table[,c("TITLE", "CONTACTS", "TOT_NITRO", 
-								 "TOT_NITRO_PERCENT", "TOT_NITRO_UNIT", "TOT_NITRO_UNITS", 
-								 "TOT_N_METH", "ORG_NITRO", "NITROGEN_SATURATION", 
-								 "NITRO_ORG_CARB_UNIT", "MICROBIAL_NITRO", "CARB_NITRO_RATIO")]
 #just nitrogen
 write.csv(EMP_nitro_table, 
 					file.path(paste(getwd(), "outputs/EMP_nitro_table.csv", sep="/")), 
 					row.names=FALSE)
 
-all.maps[["Fermilab_spatial_study"]]["TOT_NITRO"]
+#other chemistry besides nitrogen and carbon
+col.chem<-colnames(EMP_chem_table)[which(!colnames(EMP_chem_table) %in% colnames(EMP_nitro_table))]
+col.chem<-col.chem[which(!col.chem %in% col.chem[grep("CARB", col.chem)])]
+col.chem<-col.chem[which(!col.chem %in% c("TOT_DEPTH_WATER_COL", "TOT_ORG_C_METH"))]
+#look at metadata with chemistry
+chem.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.chem), head(x[,"TITLE"], 1), "No Field"))
+chem.maps<-names(chem.maps[which(!chem.maps %in% "No Field")])
+lapply(all.maps[chem.maps], function(x) head(x[colnames(x) %in% col.chem], 2))
+#not many columns shared across studies, see if can focus
+length(chem.maps) #3 studies have any of these columns
+as.matrix(table(unlist(lapply(all.maps[chem.maps], function(x) colnames(x[colnames(x) %in% col.chem])))))
+#not a lot of repeats
+lapply(all.maps[chem.maps], function(x) head(x[colnames(x) %in% col.chem], 10))
+#well, that instersting, values don't mean much without units and methods...
+
+#all other chemistry fields from Environmental metagenomic interrogation of Thar desert microbial communities
+#note TOT_MASS and TOT_MASS_UNIT from `Green Iguana hindgut microbiome`
 
 #search colnames
 col.n.comm[grep('DATE', col.n.comm, fixed=TRUE)]
