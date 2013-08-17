@@ -601,6 +601,28 @@ as.matrix(sort(table(unlist(lapply(all.maps[soil.maps], function(x) colnames(x[c
 #again most common is WATER_CONTENT_SOIL (7), but only 4 have a method...
 lapply(all.maps[soil.maps], function(x) head(x[colnames(x) %in% col.soil], 2))
 
+EMP_soil_table<-lapply(all.maps[soil.maps], function(x) cbind(
+	head(x[,"TITLE"], 1),
+	ifelse(TRUE %in% (colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")), 
+				 paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "), 
+				 "No Contacts")
+))
+
+EMP_soil_table<-do.call("rbind", EMP_soil_table)
+EMP_soil_table<-as.data.frame(EMP_soil_table)
+colnames(EMP_soil_table)<-c("TITLE", "CONTACTS")
+#add soil fields
+EMP_soil_table$WATER_CONTENT_SOIL<-unlist(lapply(all.maps[soil.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "WATER_CONTENT_SOIL"), paste(range(x[,"WATER_CONTENT_SOIL"]), collapse=" to "), "No Field")), use.names=FALSE)
+EMP_soil_table$WATER_CONTENT_SOIL_METH<-unlist(lapply(all.maps[soil.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "WATER_CONTENT_SOIL_METH"), paste(head(x[,"WATER_CONTENT_SOIL_METH"], 1), collapse=" "), "No Field")), use.names=FALSE)
+EMP_soil_table$SOIL_TYPE<-unlist(lapply(all.maps[soil.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "SOIL_TYPE"), paste(head(x[,"SOIL_TYPE"], 1), collapse=" "), "No Field")), use.names=FALSE)
+EMP_soil_table$SOIL_TYPE_METH<-unlist(lapply(all.maps[soil.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "SOIL_TYPE_METH"), paste(head(x[,"SOIL_TYPE_METH"], 1), collapse=" "), "No Field")), use.names=FALSE)
+EMP_soil_table$WATER_CONTENT_SOIL_UNIT<-unlist(lapply(all.maps[soil.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "WATER_CONTENT_SOIL_UNIT"), paste(head(x[,"WATER_CONTENT_SOIL_UNIT"], 1), collapse=" "), "No Field")), use.names=FALSE)
+EMP_soil_table$SOIL_TEMP<-unlist(lapply(all.maps[soil.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "SOIL_TEMP"), paste(range(x[,"SOIL_TEMP"]), collapse=" to "), "No Field")), use.names=FALSE)
+
+write.csv(EMP_soil_table, 
+					file.path(paste(getwd(), "outputs/EMP_soil_table.csv", sep="/")), 
+					row.names=FALSE)
+
 #search colnames
 col.n.comm[grep('CARB', col.n.comm, fixed=TRUE)]
 #hmm, maybe TOT_ORG_CAB and ORG_CARB are duplicates
@@ -611,11 +633,44 @@ length(carb.maps)
 #15 studies have fields related to carbon
 as.matrix(sort(table(unlist(lapply(all.maps[carb.maps], function(x) colnames(x[colnames(x) %in% col.carb])))), decreasing=TRUE))
 #the most common is TOT_ORG_CARB (8), however only 1 TOT_ORG_CARB_UNITS and no methods...
+lapply(all.maps[carb.maps], function(x) head(x[colnames(x) %in% col.carb], 2))
+
+#export carbon table
+EMP_carb_table<-lapply(all.maps[carb.maps], function(x) cbind(
+	head(x[,"TITLE"], 1),
+	ifelse(TRUE %in% (colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")), 
+				 paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "), 
+				 "No Contacts")
+))
+
+EMP_carb_table<-do.call("rbind", EMP_carb_table)
+EMP_carb_table<-as.data.frame(EMP_carb_table)
+colnames(EMP_carb_table)<-c("TITLE", "CONTACTS")
+#add carb fields
+EMP_carb_table$TOT_CARB<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_CARB"), paste(range(x[,"TOT_CARB"]), collapse=" to "), "No Field")), use.names=FALSE)
+EMP_carb_table$TOT_ORG_CARB<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_ORG_CARB"), paste(range(x[,"TOT_ORG_CARB"]), collapse=" to "), "No Field")), use.names=FALSE)
+EMP_carb_table$ORG_CARB<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "ORG_CARB"), paste(range(x[,"ORG_CARB"]), collapse=" to "), "No Field")), use.names=FALSE)
+EMP_carb_table$TOTAL_INORG_CARB<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOTAL_INORG_CARB"), paste(range(x[,"TOTAL_INORG_CARB"]), collapse=" to "), "No Field")), use.names=FALSE)
+EMP_carb_table$NITRO_ORG_CARB_UNIT<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "NITRO_ORG_CARB_UNIT"), paste(head(x[,"NITRO_ORG_CARB_UNIT"], 1), collapse=" "), "No Field")), use.names=FALSE)
+EMP_carb_table$TOT_ORG_CARB_UNITS<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_ORG_CARB_UNITS"), paste(head(x[,"TOT_ORG_CARB_UNITS"], 1), collapse=" "), "No Field")), use.names=FALSE)
+EMP_carb_table$CARB_NITRO_RATIO<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "CARB_NITRO_RATIO"), paste(range(x[,"CARB_NITRO_RATIO"]), collapse=" to "), "No Field")), use.names=FALSE)
+
+write.csv(EMP_carb_table, 
+					file.path(paste(getwd(), "outputs/EMP_carb_table.csv", sep="/")), 
+					row.names=FALSE)
 
 #search colnames
 col.n.comm[grep('COUNT', col.n.comm, fixed=FALSE)]
 #note "COUNTY" is less frequent, not "COUNTRY"
 #includes many microbial counts, maybe interesting, but not right now...
+col.count<-col.n.comm[grep('COUNT', col.n.comm, fixed=TRUE)]
+count.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.count), head(x[,"TITLE"], 1), "No Field"))
+count.maps<-names(count.maps[which(!count.maps %in% "No Field")])
+length(count.maps)
+#15 studies have fields related to counton
+as.matrix(sort(table(unlist(lapply(all.maps[count.maps], function(x) colnames(x[colnames(x) %in% col.count])))), decreasing=TRUE))
+#the most common is TOT_ORG_count (8), however only 1 TOT_ORG_count_UNITS and no methods...
+lapply(all.maps[count.maps], function(x) head(x[colnames(x) %in% col.count], 2))
 
 #search colnames
 col.n.comm[grep('TEMP', col.n.comm, fixed=FALSE)]
@@ -631,6 +686,27 @@ as.matrix(sort(table(unlist(lapply(all.maps[temp.maps], function(x) colnames(x[c
 #SOIL_TEMP vs. MEAN_SOIL_TEMP_DAY
 lapply(all.maps[temp.maps], function(x) head(x[colnames(x) %in% col.temp], 2))
 
+EMP_temp_table<-lapply(all.maps[temp.maps], function(x) cbind(
+	head(x[,"TITLE"], 1),
+	ifelse(TRUE %in% (colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")), 
+				 paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "), 
+				 "No Contacts")
+))
+
+EMP_temp_table<-do.call("rbind", EMP_temp_table)
+
+for(i in 1:length(col.temp)){
+	EMP_temp_table<- cbind(EMP_temp_table, unlist(lapply(all.maps[temp.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% col.temp[i]), paste(range(x[,col.temp[i]]), collapse=" to "), "No Field")), use.names=FALSE))
+	#colnames(chem.maps.df)[i]<-col.chem[i]
+}
+EMP_temp_table<-as.data.frame(EMP_temp_table)
+colnames(EMP_temp_table)<-c("TITLE", "CONTACTS", col.temp)
+#add temp fields
+
+write.csv(EMP_temp_table, 
+					file.path(paste(getwd(), "outputs/EMP_temp_table.csv", sep="/")), 
+					row.names=FALSE)
+
 #search colnames
 col.n.comm[grep('SEASON', col.n.comm, fixed=FALSE)]
 #some duplicates from TEMP, and other climate data...
@@ -642,6 +718,30 @@ length(season.maps)
 as.matrix(sort(table(unlist(lapply(all.maps[season.maps], function(x) colnames(x[colnames(x) %in% col.season])))), decreasing=TRUE))
 lapply(all.maps[season.maps], function(x) head(x[colnames(x) %in% col.season], 2))
 #wonder what the methods were to find these seasonal values, but interesting
+
+#create table for export
+EMP_season_table<-lapply(all.maps[season.maps], function(x) cbind(
+	head(x[,"TITLE"], 1),
+	ifelse(TRUE %in% (colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")), 
+				 paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "), 
+				 "No Contacts")
+))
+
+EMP_season_table<-do.call("rbind", EMP_season_table)
+
+for(i in 1:length(col.season)){
+	EMP_season_table<- cbind(EMP_season_table, unlist(lapply(all.maps[season.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% col.season[i]), paste(range(x[,col.season[i]]), collapse=" to "), "No Field")), use.names=FALSE))
+	#colnames(chem.maps.df)[i]<-col.chem[i]
+}
+EMP_season_table<-as.data.frame(EMP_season_table)
+colnames(EMP_season_table)<-c("TITLE", "CONTACTS", col.season)
+
+#add SEASON_ENVIRONMENT fields
+EMP_season_table$SEASON_ENVIRONMENT<-unlist(lapply(all.maps[season.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "SEASON_ENVIRONMENT"), paste(head(x[,"SEASON_ENVIRONMENT"], 1), collapse=" "), "No Field")), use.names=FALSE)
+	
+write.csv(EMP_season_table, 
+					file.path(paste(getwd(), "outputs/EMP_season_table.csv", sep="/")), 
+					row.names=FALSE)
 
 #search colnames
 col.n.comm[grep('UNIT', col.n.comm, fixed=FALSE)]
