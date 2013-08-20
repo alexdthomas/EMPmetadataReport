@@ -234,7 +234,7 @@ write.csv(study_class_diff_table,
 													"outputs/study_class_diff_table.csv", sep="/")), 
 					row.names=FALSE)
 
-#nice thought, not much better...
+#nice though, not much better...
 #study_class_diff_table.melt<-melt(data.frame(TITLE=study_class_diff_table[,"TITLE"], l2), id.vars="TITLE")
 
 #study_class_diff_table.cast<-dcast(study_class_diff_table.melt, variable~ TITLE, value.var="value")
@@ -304,21 +304,37 @@ write.csv(study_class_comm_col_table,
 EMP_metadata_issues<-lapply(all.maps, function(x) data.frame(Value=c(
 	paste(unique(x[,"TITLE"]), collapse=" "),
 	paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
-	ifelse(TRUE %in% (colnames(x) %in% "COLLECTION_DATE"), paste(range(x[,"COLLECTION_DATE"]), collapse=" to "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "COLLECTION_DATE"), 
+				 paste(paste(range(x[,"COLLECTION_DATE"], finite=TRUE), collapse=" to "),
+				 			paste(length(which(is.na(x[,"COLLECTION_DATE"]))), length(x[,"COLLECTION_DATE"]), sep=" NA of "), sep="; "), "No Field"),
 	ifelse(TRUE %in% (colnames(x) %in% "COLLECTION_DATE"), class(x[,"COLLECTION_DATE"]), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "SAMP_SIZE"), paste(range(x[,"SAMP_SIZE"]), collapse=" to "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), paste(range(x[,"DEPTH"]), collapse=" to "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "SAMP_SIZE"), 
+				 paste(paste(range(x[,"SAMP_SIZE"], finite=TRUE), collapse=" to "),
+						paste(length(which(is.na(x[,"SAMP_SIZE"]))), length(x[,"SAMP_SIZE"]), sep=" NA of "), sep="; "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "DEPTH"),  
+				 paste(paste(range(x[,"DEPTH"], finite=TRUE), collapse=" to "),
+				 			paste(length(which(is.na(x[,"DEPTH"]))), length(x[,"DEPTH"]), sep=" NA of "), sep="; "), "No Field"),
 	ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), class(x[,"DEPTH"]), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), paste(range(x[,"RUN_DATE"]), collapse=" to "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), 
+				 paste(paste(range(x[,"RUN_DATE"], finite=TRUE), collapse=" to "),
+				 			paste(length(which(is.na(x[,"RUN_DATE"]))), length(x[,"RUN_DATE"]), sep=" NA of "), sep="; "), "No Field"),
 	ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), class(x[,"RUN_DATE"]), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "SEQUENCING_METH"), paste(head(x[,"SEQUENCING_METH"], 1), collapse="  "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "LIBRARY_CONSTRUCTION_PROTOCOL"), paste(head(x[,"LIBRARY_CONSTRUCTION_PROTOCOL"], 1), collapse=" "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "PCR_PRIMERS"), paste(head(x[,"PCR_PRIMERS"], 1), collapse=" "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "PLATFORM"), paste(head(x[,"PLATFORM"], 1), collapse=" "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "RUN_CENTER"), paste(head(x[,"RUN_CENTER"], 1), collapse=" "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "SAMPLE_CENTER"), paste(head(x[,"SAMPLE_CENTER"], 1), collapse=" to "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "SAMPLE_LOCATION"), paste(head(x[,"SAMPLE_LOCATION"], 1), collapse=" "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "TARGET_GENE"), paste(head(x[,"TARGET_GENE"], 1), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "SEQUENCING_METH"), 
+				 paste(unique(x[which(!is.na(x[,"SEQUENCING_METH"])),"SEQUENCING_METH"]), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "LIBRARY_CONSTRUCTION_PROTOCOL"), 
+				 paste(unique(x[which(!is.na(x[,"LIBRARY_CONSTRUCTION_PROTOCOL"])),"LIBRARY_CONSTRUCTION_PROTOCOL"]), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "PCR_PRIMERS"), 
+				 paste(unique(x[which(!is.na(x[,"PCR_PRIMERS"])),"PCR_PRIMERS"]), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "PLATFORM"), 
+				 paste(unique(x[which(!is.na(x[,"PLATFORM"])),"PLATFORM"]), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "RUN_CENTER"), 
+				 paste(unique(x[which(!is.na(x[,"RUN_CENTER"])),"RUN_CENTER"]), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "SAMPLE_CENTER"), 
+				 paste(unique(x[which(!is.na(x[,"SAMPLE_CENTER"])),"SAMPLE_CENTER"]), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "SAMPLE_LOCATION"), 
+				 paste(unique(x[which(!is.na(x[,"SAMPLE_LOCATION"])),"SAMPLE_LOCATION"]), collapse=" "), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "TARGET_GENE"),
+				 paste(unique(x[which(!is.na(x[,"TARGET_GENE"])),"TARGET_GENE"]), collapse=" "), "No Field"),
 	paste("")),	
 	#FIELD=c("TITLE","CONTACTS", "RUN_DATE","RUN_DATE.class", "DEPTH","DEPTH.class", "break"),  																	
 	row.names=c("TITLE", 
@@ -538,12 +554,31 @@ EMP_nitro_table<-lapply(all.maps[nitro.maps], function(x) cbind(
 EMP_nitro_table<-do.call("rbind", EMP_nitro_table)
 EMP_nitro_table<-as.data.frame(EMP_nitro_table)
 colnames(EMP_nitro_table)<-c("TITLE", "CONTACTS")
+
 #add NITRO fields
-EMP_nitro_table$TOT_NITRO<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO"), paste(range(x[,"TOT_NITRO"]), collapse=" to "), "No Field")), use.names=FALSE)
-EMP_nitro_table$TOT_NITRO_PERCENT<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO_PERCENT"), paste(range(x[,"TOT_NITRO_PERCENT"]), collapse=" to "), "No Field")), use.names=FALSE)
-EMP_nitro_table$TOT_NITRO_UNIT<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO_UNIT"), paste(head(x[,"TOT_NITRO_UNIT"], 1), collapse=" "), "No Field")), use.names=FALSE)
-EMP_nitro_table$TOT_NITRO_UNITS<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO_UNITS"), paste(head(x[,"TOT_NITRO_UNITS"], 1), collapse=" "), "No Field")), use.names=FALSE)
-EMP_nitro_table$TOT_N_METH<-unlist(lapply(all.maps[nitro.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_N_METH"), paste(head(x[,"TOT_N_METH"], 1), collapse=" "), "No Field")), use.names=FALSE)
+EMP_nitro_table$TOT_NITRO<-unlist(lapply(all.maps[nitro.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO"), 
+				 paste(paste(range(x[,"TOT_NITRO"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"TOT_NITRO"]))), length(x[,"TOT_NITRO"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
+
+EMP_nitro_table$TOT_NITRO_PERCENT<-unlist(lapply(all.maps[nitro.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO_PERCENT"),  
+				 paste(paste(range(x[,"TOT_NITRO_PERCENT"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"TOT_NITRO_PERCENT"]))), length(x[,"TOT_NITRO_PERCENT"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
+
+EMP_nitro_table$TOT_NITRO_UNIT<-unlist(lapply(all.maps[nitro.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO_UNIT"), 
+				 paste(unique(x[which(!is.na(x[,"TOT_NITRO_UNIT"])),"TOT_NITRO_UNIT"]), collapse=" "), "No Field")), use.names=FALSE)
+
+
+EMP_nitro_table$TOT_NITRO_UNITS<-unlist(lapply(all.maps[nitro.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "TOT_NITRO_UNITS"), 
+				 paste(unique(x[which(!is.na(x[,"TOT_NITRO_UNITS"])),"TOT_NITRO_UNITS"]), collapse=" "), "No Field")), use.names=FALSE)
+
+EMP_nitro_table$TOT_N_METH<-unlist(lapply(all.maps[nitro.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "TOT_N_METH"), 
+				 paste(unique(x[which(!is.na(x[,"TOT_N_METH"])),"TOT_N_METH"]), collapse=" "), "No Field")), use.names=FALSE)
+
 
 #just nitrogen
 write.csv(EMP_nitro_table, 
@@ -612,12 +647,31 @@ EMP_soil_table<-do.call("rbind", EMP_soil_table)
 EMP_soil_table<-as.data.frame(EMP_soil_table)
 colnames(EMP_soil_table)<-c("TITLE", "CONTACTS")
 #add soil fields
-EMP_soil_table$WATER_CONTENT_SOIL<-unlist(lapply(all.maps[soil.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "WATER_CONTENT_SOIL"), paste(range(x[,"WATER_CONTENT_SOIL"]), collapse=" to "), "No Field")), use.names=FALSE)
-EMP_soil_table$WATER_CONTENT_SOIL_METH<-unlist(lapply(all.maps[soil.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "WATER_CONTENT_SOIL_METH"), paste(head(x[,"WATER_CONTENT_SOIL_METH"], 1), collapse=" "), "No Field")), use.names=FALSE)
-EMP_soil_table$SOIL_TYPE<-unlist(lapply(all.maps[soil.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "SOIL_TYPE"), paste(head(x[,"SOIL_TYPE"], 1), collapse=" "), "No Field")), use.names=FALSE)
-EMP_soil_table$SOIL_TYPE_METH<-unlist(lapply(all.maps[soil.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "SOIL_TYPE_METH"), paste(head(x[,"SOIL_TYPE_METH"], 1), collapse=" "), "No Field")), use.names=FALSE)
-EMP_soil_table$WATER_CONTENT_SOIL_UNIT<-unlist(lapply(all.maps[soil.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "WATER_CONTENT_SOIL_UNIT"), paste(head(x[,"WATER_CONTENT_SOIL_UNIT"], 1), collapse=" "), "No Field")), use.names=FALSE)
-EMP_soil_table$SOIL_TEMP<-unlist(lapply(all.maps[soil.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "SOIL_TEMP"), paste(range(x[,"SOIL_TEMP"]), collapse=" to "), "No Field")), use.names=FALSE)
+EMP_soil_table$WATER_CONTENT_SOIL<-unlist(lapply(all.maps[soil.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "WATER_CONTENT_SOIL"),  
+				 paste(paste(range(x[,"WATER_CONTENT_SOIL"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"WATER_CONTENT_SOIL"]))), length(x[,"WATER_CONTENT_SOIL"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
+
+EMP_soil_table$WATER_CONTENT_SOIL_METH<-unlist(lapply(all.maps[soil.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "WATER_CONTENT_SOIL_METH"), 
+				 paste(unique(x[which(!is.na(x[,"WATER_CONTENT_SOIL_METH"])),"WATER_CONTENT_SOIL_METH"]), collapse=" "), "No Field")), use.names=FALSE)
+
+EMP_soil_table$SOIL_TYPE<-unlist(lapply(all.maps[soil.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "SOIL_TYPE"), 
+				 paste(unique(x[which(!is.na(x[,"SOIL_TYPE"])),"SOIL_TYPE"]), collapse=" "), "No Field")), use.names=FALSE)
+
+EMP_soil_table$SOIL_TYPE_METH<-unlist(lapply(all.maps[soil.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "SOIL_TYPE_METH"), 
+				 paste(unique(x[which(!is.na(x[,"SOIL_TYPE_METH"])),"SOIL_TYPE_METH"]), collapse=" "), "No Field")), use.names=FALSE)
+
+EMP_soil_table$WATER_CONTENT_SOIL_UNIT<-unlist(lapply(all.maps[soil.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "WATER_CONTENT_SOIL_UNIT"), 
+				 paste(unique(x[which(!is.na(x[,"WATER_CONTENT_SOIL_UNIT"])),"WATER_CONTENT_SOIL_UNIT"]), collapse=" "), "No Field")), use.names=FALSE)
+
+EMP_soil_table$SOIL_TEMP<-unlist(lapply(all.maps[soil.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "SOIL_TEMP"),  
+				 paste(paste(range(x[,"SOIL_TEMP"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"SOIL_TEMP"]))), length(x[,"SOIL_TEMP"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
 
 write.csv(EMP_soil_table, 
 					file.path(paste(getwd(), "outputs/EMP_soil_table.csv", sep="/")), 
@@ -627,6 +681,8 @@ write.csv(EMP_soil_table,
 col.n.comm[grep('CARB', col.n.comm, fixed=TRUE)]
 #hmm, maybe TOT_ORG_CAB and ORG_CARB are duplicates
 col.carb<-col.n.comm[grep('CARB', col.n.comm, fixed=TRUE)]
+#add method
+col.carb<-c(col.carb, "TOT_ORG_C_METH")
 carb.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.carb), head(x[,"TITLE"], 1), "No Field"))
 carb.maps<-names(carb.maps[which(!carb.maps %in% "No Field")])
 length(carb.maps)
@@ -647,13 +703,42 @@ EMP_carb_table<-do.call("rbind", EMP_carb_table)
 EMP_carb_table<-as.data.frame(EMP_carb_table)
 colnames(EMP_carb_table)<-c("TITLE", "CONTACTS")
 #add carb fields
-EMP_carb_table$TOT_CARB<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_CARB"), paste(range(x[,"TOT_CARB"]), collapse=" to "), "No Field")), use.names=FALSE)
-EMP_carb_table$TOT_ORG_CARB<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_ORG_CARB"), paste(range(x[,"TOT_ORG_CARB"]), collapse=" to "), "No Field")), use.names=FALSE)
-EMP_carb_table$ORG_CARB<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "ORG_CARB"), paste(range(x[,"ORG_CARB"]), collapse=" to "), "No Field")), use.names=FALSE)
-EMP_carb_table$TOTAL_INORG_CARB<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOTAL_INORG_CARB"), paste(range(x[,"TOTAL_INORG_CARB"]), collapse=" to "), "No Field")), use.names=FALSE)
-EMP_carb_table$NITRO_ORG_CARB_UNIT<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "NITRO_ORG_CARB_UNIT"), paste(head(x[,"NITRO_ORG_CARB_UNIT"], 1), collapse=" "), "No Field")), use.names=FALSE)
-EMP_carb_table$TOT_ORG_CARB_UNITS<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "TOT_ORG_CARB_UNITS"), paste(head(x[,"TOT_ORG_CARB_UNITS"], 1), collapse=" "), "No Field")), use.names=FALSE)
-EMP_carb_table$CARB_NITRO_RATIO<-unlist(lapply(all.maps[carb.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "CARB_NITRO_RATIO"), paste(range(x[,"CARB_NITRO_RATIO"]), collapse=" to "), "No Field")), use.names=FALSE)
+EMP_carb_table$TOT_CARB<-unlist(lapply(all.maps[carb.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "TOT_CARB"),  
+				 paste(paste(range(x[,"TOT_CARB"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"TOT_CARB"]))), length(x[,"TOT_CARB"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
+
+EMP_carb_table$TOT_ORG_CARB<-unlist(lapply(all.maps[carb.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "TOT_ORG_CARB"),  
+				 paste(paste(range(x[,"TOT_ORG_CARB"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"TOT_ORG_CARB"]))), length(x[,"TOT_ORG_CARB"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
+
+EMP_carb_table$ORG_CARB<-unlist(lapply(all.maps[carb.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "ORG_CARB"),  
+				 paste(paste(range(x[,"ORG_CARB"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"ORG_CARB"]))), length(x[,"ORG_CARB"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
+
+EMP_carb_table$TOTAL_INORG_CARB<-unlist(lapply(all.maps[carb.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "TOTAL_INORG_CARB"),  
+				 paste(paste(range(x[,"TOTAL_INORG_CARB"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"TOTAL_INORG_CARB"]))), length(x[,"TOTAL_INORG_CARB"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
+
+EMP_carb_table$NITRO_ORG_CARB_UNIT<-unlist(lapply(all.maps[carb.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "NITRO_ORG_CARB_UNIT"), 
+				 paste(unique(x[which(!is.na(x[,"NITRO_ORG_CARB_UNIT"])),"NITRO_ORG_CARB_UNIT"]), collapse=" "), "No Field")), use.names=FALSE)
+
+EMP_carb_table$TOT_ORG_CARB_UNITS<-unlist(lapply(all.maps[carb.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "TOT_ORG_CARB_UNITS"), 
+				 paste(unique(x[which(!is.na(x[,"TOT_ORG_CARB_UNITS"])),"TOT_ORG_CARB_UNITS"]), collapse=" "), "No Field")), use.names=FALSE)
+
+EMP_carb_table$CARB_NITRO_RATIO<-unlist(lapply(all.maps[carb.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "CARB_NITRO_RATIO"),  
+				 paste(paste(range(x[,"CARB_NITRO_RATIO"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"CARB_NITRO_RATIO"]))), length(x[,"CARB_NITRO_RATIO"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
+
+EMP_carb_table$TOT_ORG_C_METH<-unlist(lapply(all.maps[carb.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "TOT_ORG_C_METH"), 
+				 paste(unique(x[which(!is.na(x[,"TOT_ORG_C_METH"])),"TOT_ORG_C_METH"]), collapse=" "), "No Field")), use.names=FALSE)
 
 write.csv(EMP_carb_table, 
 					file.path(paste(getwd(), "outputs/EMP_carb_table.csv", sep="/")), 
@@ -694,13 +779,38 @@ EMP_temp_table<-lapply(all.maps[temp.maps], function(x) cbind(
 ))
 
 EMP_temp_table<-do.call("rbind", EMP_temp_table)
-
-for(i in 1:length(col.temp)){
-	EMP_temp_table<- cbind(EMP_temp_table, unlist(lapply(all.maps[temp.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% col.temp[i]), paste(range(x[,col.temp[i]]), collapse=" to "), "No Field")), use.names=FALSE))
-	#colnames(chem.maps.df)[i]<-col.chem[i]
-}
 EMP_temp_table<-as.data.frame(EMP_temp_table)
-colnames(EMP_temp_table)<-c("TITLE", "CONTACTS", col.temp)
+
+######### shoot, if any NA's this returns range NA to NA...
+#for(i in 1:length(col.temp)){
+#	EMP_temp_table<- cbind(EMP_temp_table, unlist(lapply(all.maps[temp.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% col.temp[i]), paste(range(x[,col.temp[i]]), collapse=" to "), "No Field")), use.names=FALSE))
+#	#colnames(chem.maps.df)[i]<-col.chem[i]
+#}
+
+EMP_temp_table$TEMP<-unlist(lapply(all.maps[temp.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "TEMP"),  
+				 paste(paste(range(x[,"TEMP"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"TEMP"]))), length(x[,"TEMP"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
+
+EMP_temp_table$ANNUAL_SEASON_TEMP<-unlist(lapply(all.maps[temp.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "ANNUAL_SEASON_TEMP"),  
+				 paste(paste(range(x[,"ANNUAL_SEASON_TEMP"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"ANNUAL_SEASON_TEMP"]))), length(x[,"ANNUAL_SEASON_TEMP"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
+
+EMP_temp_table$AIR_TEMP<-unlist(lapply(all.maps[temp.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "AIR_TEMP"),  
+				 paste(paste(range(x[,"AIR_TEMP"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"AIR_TEMP"]))), length(x[,"AIR_TEMP"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
+
+EMP_temp_table$SOIL_TEMP<-unlist(lapply(all.maps[temp.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "SOIL_TEMP"),  
+				 paste(paste(range(x[,"SOIL_TEMP"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"SOIL_TEMP"]))), length(x[,"SOIL_TEMP"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
+
+
+EMP_temp_table<-as.data.frame(EMP_temp_table)
+colnames(EMP_temp_table)<-c("TITLE", "CONTACTS", "TEMP", "ANNUAL_SEASON_TEMP", "AIR_TEMP", "SOIL_TEMP")
+
 #add temp fields
 
 write.csv(EMP_temp_table, 
@@ -755,4 +865,13 @@ as.matrix(sort(table(unlist(lapply(all.maps[unit.maps], function(x) colnames(x[c
 lapply(all.maps[unit.maps], function(x) head(x[colnames(x) %in% col.unit], 2))
 #can at least find sudies that have units...
 
+#manually adding fields to the 
+#Summary of potential metadata issues across studies table
 
+#inspect to make sure problems exist 
+head(all.maps[["Friedman_alaska_peat_soils"]])
+summary(is.na(all.maps[["Friedman_alaska_peat_soils"]][["TEMP"]]))
+
+all.maps[["Friedman_alaska_peat_soils"]][["TOT_N_METH"]]
+range(all.maps[["Bergen Ocean Acidification Mesocosms"]][["ORG_NITRO"]], finite=TRUE)
+summary(is.na(all.maps[["Bergen Ocean Acidification Mesocosms"]][["ORG_NITRO"]]))
