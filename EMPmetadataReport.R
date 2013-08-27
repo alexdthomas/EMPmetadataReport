@@ -27,9 +27,7 @@ all.maps<-list()
 #note characterAsFactors=FALSE to reduce class issues
 #though this only removes issues of character -> factor and vice versa issues
 #does not resolve charcter-> integer, numeric, date etc...
-for (i in 1:length(map.file.names)){
-	all.maps[[i]]<-assign(paste("map", i, sep=""), read.delim(map.file.names[i], quote="", stringsAsFactors=FALSE))
-}
+all.maps<-lapply(map.file.names, function(x) read.delim(x, quote="", stringsAsFactors=FALSE))
 
 #reset working directory 
 setwd("~/EarthMicrobiomeProject/R/EMPmetadataReport")
@@ -136,111 +134,10 @@ com.col<-names(com.col)
 lapply(all.maps, function(x) head(x[ ,which(colnames(x) %in% com.col)], 2))
 
 #pick through each study and find which common columns have different classes
-map.class.tmp<-list()
-map.class<-list()
+#had written a really ugly nested loop to do this and it was not that helpful
+#below is much cleaner and more helpful
 
-for(i in 1:length(all.maps)){
-	for(j in i:length(all.maps)){
-		all.maps.cnames<-colnames(all.maps[[i]]
-															[which(unlist(lapply(all.maps[i], colnames)) %in%  
-																		 	unlist(lapply(all.maps[j], colnames)))])
-		dat1.class<-lapply(all.maps[[i]][all.maps.cnames], class)
-		dat2.class<-lapply(all.maps[[j]][all.maps.cnames], class)
-		dat1.class<-unlist(dat1.class)
-		dat2.class<-unlist(dat2.class)
-		map.class.tmp[[j]]<-cbind(dat1.class[which(!dat1.class==dat2.class)], 
-													dat2.class[which(!dat2.class==dat1.class)])
-	}
-	map.class[[i]]<-map.class.tmp
-}
-map.class[[1]]
-#volumous, but works
-
-#now can pick through and see what the differences are...
-map.class[[1]][6]
-head(all.maps[[1]][c("RUN_DATE", "DEPTH", "EXPERIMENT_DESIGN_DESCRIPTION")])
-head(all.maps[[6]][c("RUN_DATE", "DEPTH", "EXPERIMENT_DESIGN_DESCRIPTION")])
-
-#see if can get all the colnames with problems
-class(map.class[[1]][6])
-rownames(map.class[[1]][[6]])
-
-tmp.rows<-list()
-col.class.dif<-list()
-
-for(i in 1:length(map.class)){
-	tmp.map<-map.class[[i]]
-	for(j in 1:length(map.class[[i]])){
-		tmp.rows[[i]]<-list(rownames(tmp.map[[j]]))
-	}
-	col.class.dif[[i]]<-list(tmp.rows[[i]])
-}
-unlist(col.class.dif)
-unique(unlist(col.class.dif))
-sort(table(unlist(col.class.dif)))
-#so it is mostly depth and a few others
-
-#look at just these columns across studes
-col.class.dif<-unique(unlist(col.class.dif))
-
-l1 <- vector('list', length(col.class.dif))
-
-for(i in 1:length(col.class.dif)){
-	
-	#get example of values in column for each data frame
-	check.val<-lapply(all.maps, function(x) {head(x[colnames(x) %in% 
-							unique(unlist(col.class.dif))[i]], 1)})
-	#give elements names
-	#names(check.val)<-paste("map", 1:49, sep="")
-	#replace empty data frames with NA
-	check.val[which(lapply(check.val, length)==0)]<-"No Field"
-	
-	#build table
-	l1[[i]]<-unlist(check.val)
-	names(l1[i])<-paste(col.class.dif[i], ".ex", sep="")
-													 
-}
-
-
-l2 <- vector('list', length(col.class.dif))
-for(i in 1:length(col.class.dif)){
-	
-	#get class of each column for each data frame
-	check.class<-lapply(all.maps, function(x) {lapply(x[colnames(x) %in% 
-								col.class.dif[i]], class)})
-	#convert empty values to NA
-	check.class[which(lapply(check.class, length)==0)]<-"No Field"
-	
-	l2[[i]]<-unlist(check.class)
-	names(l2[i])<-paste(col.class.dif[i], ".class", sep="")
-	
-}
-
-#create table
-l1<-data.frame(l1)
-colnames(l1)<-paste(col.class.dif, ".ex", sep="")
-
-l2<-data.frame(l2)
-colnames(l2)<-paste(col.class.dif, ".class", sep="")
-
-study_class_diff_table<-data.frame(TITLE=unlist(lapply(all.maps, function(x) unique(x[,"TITLE"]))))
-study_class_diff_table<-cbind(study_class_diff_table, l1, l2)
-	
-#sort by column name 
-study_class_diff_table<-study_class_diff_table[, c("TITLE", sort(colnames(study_class_diff_table)[2:23]))]
-#export
-write.csv(study_class_diff_table, 
-					file.path(paste(getwd(), 
-													"outputs/study_class_diff_table.csv", sep="/")), 
-					row.names=FALSE)
-
-#nice though, not much better...
-#study_class_diff_table.melt<-melt(data.frame(TITLE=study_class_diff_table[,"TITLE"], l2), id.vars="TITLE")
-
-#study_class_diff_table.cast<-dcast(study_class_diff_table.melt, variable~ TITLE, value.var="value")
-#head(study_class_diff_table.cast)
-
-#investigate all of the most common fields using this script...
+#investigate all of the most common fields
 #select fields present in greater than half of the studies
 col.comm<-names(which(sort(table(unlist(lapply(all.maps, colnames))), decreasing=TRUE)>length(all.maps)/2))
 
@@ -248,148 +145,111 @@ col.comm<-names(which(sort(table(unlist(lapply(all.maps, colnames))), decreasing
 col.comm<-c(col.comm, "PRINCIPAL_INVESTIGATOR_CONTACT", 
 						"LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")
 
-l1 <- vector('list', length(col.comm))
 
-for(i in 1:length(col.comm)){
-	
-	#get example of values in column for each data frame
-	check.val<-lapply(all.maps, function(x) {head(x[colnames(x) %in% 
-										col.comm[i]], 1)})
-	#give elements names
-	#names(check.val)<-paste("map", 1:49, sep="")
-	#replace empty data frames with NA
-	check.val[which(lapply(check.val, length)==0)]<-"No Field"
-	
-	#build table
-	l1[[i]]<-unlist(check.val)
-	names(l1[i])<-paste(col.comm[i], ".ex", sep="")
-	
-}
+#apply an ifelse statement for each column in 'col.comm' to each 
+#mapping file in 'all.maps'
+check.class<-lapply(all.maps, function(i) 
+	unlist(lapply(col.comm, function(x) ifelse(x %in% colnames(i), class(i[ ,x]), "No Field"))))
+#the first lapply is to iterate through each mapping file in the list of data frames
+#the second lapply iterates through the list of common fields (columns)
+#so each mapping file is checked to see if it contains each common field 
+#by ifelse(x %in% colnames(i))
+#if that particular field is in that mapping file, provide the class (data type)
+#if it is not 'No Field' should be stated
+#as lapply produces a list nesting it produces a list of lists 
+#so unlist the nested list before saving
+#this allows for an easier conversion to a flat table (row x col) instead of a list of lists
 
+#now convert the list to a table
+check.class<-data.frame(check.class)
+#change the row names
+rownames(check.class)<-paste(col.comm, ".class", sep="")
+#transpose the table so it is study x field (instead of field x study)
+check.class<-t(check.class)
 
-l2 <- vector('list', length(col.comm))
-for(i in 1:length(col.comm)){
-	
-	#get class of each column for each data frame
-	check.class<-lapply(all.maps, function(x) {lapply(x[colnames(x) %in% 
-																												col.comm[i]], class)})
-	#convert empty values to NA
-	check.class[which(lapply(check.class, length)==0)]<-"No Field"
-	
-	l2[[i]]<-unlist(check.class)
-	names(l2[i])<-paste(col.comm[i], ".class", sep="")
-	
-}
+#use a very similar function to produce the first value in the column
+#or an example of what the field loooks like
+#or state no field
+check.val<-lapply(all.maps, function(i) 
+	unlist(lapply(col.comm, function(x) ifelse(x %in% colnames(i), head(i[ ,x], 1), "No Field"))))
+check.val<-data.frame(check.val)
+rownames(check.val)<-paste(col.comm, ".ex", sep="")
+check.val<-t(check.val)
 
-#create table
-l1<-data.frame(l1)
-colnames(l1)<-paste(col.comm, ".ex", sep="")
-
-l2<-data.frame(l2)
-colnames(l2)<-paste(col.comm, ".class", sep="")
-
+#now make a new table of just study names
 study_class_comm_col_table<-data.frame(TITLE=unlist(lapply(all.maps, function(x) unique(x[,"TITLE"]))))
-study_class_comm_col_table<-cbind(study_class_comm_col_table, l1, l2)
+#bind the class and examples tables to this table
+study_class_comm_col_table<-cbind(study_class_comm_col_table, check.class, check.val)
+dim(study_class_comm_col_table)
+colnames(study_class_comm_col_table)
+#reorder the columns to place classes and examples of each column side by side
+study_class_comm_col_table<-study_class_comm_col_table[, c("TITLE", sort(colnames(study_class_comm_col_table)[2:93]))]
 
-#sort by column name 
-study_class_comm_col_table<-study_class_comm_col_table[, c("TITLE", sort(colnames(study_class_comm_col_table)[2:87]))]
-#export
+#export as .csv to easily view and format
 write.csv(study_class_comm_col_table, 
 					file.path(paste(getwd(), 
 													"outputs/study_class_comm_col_table.csv", sep="/")), 
 					row.names=FALSE)
 
+#now that I have picked through that table and identified particularly 
+#problematic fields can collect just those into a table
 #can create list of studies and key data to export as report?
 
-EMP_metadata_issues<-lapply(all.maps, function(x) data.frame(Value=c(
-	paste(unique(x[,"TITLE"]), collapse=" "),
-	paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
-	ifelse(TRUE %in% (colnames(x) %in% "COLLECTION_DATE"), 
-				 paste(paste(range(x[,"COLLECTION_DATE"], finite=TRUE), collapse=" to "),
-				 			paste(length(which(is.na(x[,"COLLECTION_DATE"]))), length(x[,"COLLECTION_DATE"]), sep=" NA of "), sep="; "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "COLLECTION_DATE"), class(x[,"COLLECTION_DATE"]), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "SAMP_SIZE"), 
-				 paste(paste(range(x[,"SAMP_SIZE"], finite=TRUE), collapse=" to "),
-						paste(length(which(is.na(x[,"SAMP_SIZE"]))), length(x[,"SAMP_SIZE"]), sep=" NA of "), sep="; "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "DEPTH"),  
-				 paste(paste(range(x[,"DEPTH"], finite=TRUE), collapse=" to "),
-				 			paste(length(which(is.na(x[,"DEPTH"]))), length(x[,"DEPTH"]), sep=" NA of "), sep="; "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), class(x[,"DEPTH"]), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), 
-				 paste(paste(range(x[,"RUN_DATE"], finite=TRUE), collapse=" to "),
-				 			paste(length(which(is.na(x[,"RUN_DATE"]))), length(x[,"RUN_DATE"]), sep=" NA of "), sep="; "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), class(x[,"RUN_DATE"]), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "SEQUENCING_METH"), 
-				 paste(unique(x[which(!is.na(x[,"SEQUENCING_METH"])),"SEQUENCING_METH"]), collapse=" "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "LIBRARY_CONSTRUCTION_PROTOCOL"), 
-				 paste(unique(x[which(!is.na(x[,"LIBRARY_CONSTRUCTION_PROTOCOL"])),"LIBRARY_CONSTRUCTION_PROTOCOL"]), collapse=" "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "PCR_PRIMERS"), 
-				 paste(unique(x[which(!is.na(x[,"PCR_PRIMERS"])),"PCR_PRIMERS"]), collapse=" "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "PLATFORM"), 
-				 paste(unique(x[which(!is.na(x[,"PLATFORM"])),"PLATFORM"]), collapse=" "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "RUN_CENTER"), 
-				 paste(unique(x[which(!is.na(x[,"RUN_CENTER"])),"RUN_CENTER"]), collapse=" "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "SAMPLE_CENTER"), 
-				 paste(unique(x[which(!is.na(x[,"SAMPLE_CENTER"])),"SAMPLE_CENTER"]), collapse=" "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "SAMPLE_LOCATION"), 
-				 paste(unique(x[which(!is.na(x[,"SAMPLE_LOCATION"])),"SAMPLE_LOCATION"]), collapse=" "), "No Field"),
-	ifelse(TRUE %in% (colnames(x) %in% "TARGET_GENE"),
-				 paste(unique(x[which(!is.na(x[,"TARGET_GENE"])),"TARGET_GENE"]), collapse=" "), "No Field"),
-	paste("")),	
-	#FIELD=c("TITLE","CONTACTS", "RUN_DATE","RUN_DATE.class", "DEPTH","DEPTH.class", "break"),  																	
-	row.names=c("TITLE", 
-							"CONTACTS", 
-							"COLLECTION_DATE_range", 
-							"COLLECTION_DATE_class", 
-							"SAMP_SIZE_range",
-							"DEPTH_range",
-							"DEPTH.class", 
-							"RUN_DATE_range",
-							"RUN_DATE.class",
-							"SEQUENCING_METH", 
-							"LIBRARY_CONSTRUCTION", 
-					  	"PCR_PRIMERS", 
-							"PLATFORM", 
-							"RUN_CENTER",  
-							"SAMPLE_CENTER", 
-							"SAMPLE_LOCATION", 
-							"TARGET_GENE", 
-							"")  																	
-))
+#create two lists, one for numeric and one for string data
+meta.num<-c("COLLECTION_DATE", "SAMP_SIZE", "DEPTH", "RUN_DATE")
+meta.ex<-c("SEQUENCING_METH", "LIBRARY_CONSTRUCTION_PROTOCOL", "PCR_PRIMERS", 
+					 "PLATFORM", "RUN_CENTER", "SAMPLE_CENTER", "SAMPLE_LOCATION", "TARGET_GENE")
 
+#create new table of study title, contacts and field ranges, 
+#classes and values of interest
+
+EMP_metadata_issues<-lapply(all.maps, function(x) data.frame(Value=c(
+	#study title first
+	paste(unique(x[,"TITLE"]), collapse=" "),
+	#any values that may indicate contact information
+	paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
+	#paste the range and #NA out of total for all numeric columns 
+	#(listed in meta.num)
+	unlist(lapply(meta.num, function(i) 
+	unlist(ifelse(isTRUE(i %in% colnames(x)), paste(paste(range(x[,i], finite=TRUE), collapse=" to "),
+																									paste(length(which(is.na(x[,i]))), length(x[,i]), sep=" NA of "), sep="; "), "No Field")
+	))),
+	#paste class of certain fields
+	ifelse(TRUE %in% (colnames(x) %in% "COLLECTION_DATE"), class(x[,"COLLECTION_DATE"]), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "DEPTH"), class(x[,"DEPTH"]), "No Field"),
+	ifelse(TRUE %in% (colnames(x) %in% "RUN_DATE"), class(x[,"RUN_DATE"]), "No Field"),
+	#paste first non NA value for listed fields 
+	unlist(lapply(meta.ex, function(i)
+		unlist(ifelse(isTRUE(i %in% colnames(x)), 
+									paste(unique(x[which(!is.na(x[,i])),i]), collapse=" "), "No Field")))),
+	#add a break between studies
+	paste("")),	
+#FIELD=c("TITLE","CONTACTS", "RUN_DATE","RUN_DATE.class", "DEPTH","DEPTH.class", "break"),  																	
+	row.names=c("TITLE", 
+	"CONTACTS", 
+	"COLLECTION_DATE_range", 
+	"COLLECTION_DATE_class", 
+	"SAMP_SIZE_range",
+	"DEPTH_range",
+	"DEPTH.class", 
+	"RUN_DATE_range",
+	"RUN_DATE.class",
+	"SEQUENCING_METH", 
+	"LIBRARY_CONSTRUCTION", 
+	"PCR_PRIMERS", 
+	"PLATFORM", 
+	"RUN_CENTER",  
+	"SAMPLE_CENTER", 
+	"SAMPLE_LOCATION", 
+	"TARGET_GENE", 
+	"")  																	
+	))
+
+#add study title as list title
 names(EMP_metadata_issues)<-unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
 
-#test
-ifelse(TRUE %in% (colnames(all.maps[[1]]) %in% "RUN_CENTER"), paste(head(all.maps[[1]][,"RUN_CENTER"]), 1), "No Field")
-ifelse(TRUE %in% (colnames(all.maps[[1]]) %in% "RUN_CENTER"), paste(range(all.maps[[1]][,"RUN_CENTER"]), collaps= ""), "No Field")
-
-ifelse(TRUE %in% (colnames(all.maps[[1]]) %in% "RUN_CENTER"), class(all.maps[[1]][,"RUN_CENTER"]), "No Field")
-
-#lapply(all.maps, function(x) paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "))
-#all.maps[["EPOCA_Svalbard2018"]][,colnames(all.maps[["EPOCA_Svalbard2018"]]) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]
-
 #convert to data frame and export
-EMP_metadata_issues.df<-do.call("rbind", EMP_metadata_issues)
-EMP_metadata_issues.df$Field<-rep(c("TITLE", 
-																		"CONTACTS", 
-																		"COLLECTION_DATE_range", 
-																		"COLLECTION_DATE_class", 
-																		"SAMP_SIZE_range",
-																		"DEPTH_range",
-																		"DEPTH.class", 
-																		"RUN_DATE_range",
-																		"RUN_DATE.class",
-																		"SEQUENCING_METH", 
-																		"LIBRARY_CONSTRUCTION", 
-																		"PCR_PRIMERS", 
-																		"PLATFORM", 
-																		"RUN_CENTER",  
-																		"SAMPLE_CENTER", 
-																		"SAMPLE_LOCATION", 
-																		"TARGET_GENE", 
-																		""), 49)
-
-EMP_metadata_issues.df<-EMP_metadata_issues.df[,c("Field", "Value")]
+EMP_metadata_issues.df<-data.frame(EMP_metadata_issues, check.names=FALSE)
 
 write.csv(EMP_metadata_issues.df, 
 					file.path(paste(getwd(), 
@@ -398,18 +258,6 @@ write.csv(EMP_metadata_issues.df,
 
 #this seemed useful, but in the end not, may want later though
 #http://stackoverflow.com/questions/13006909/export-a-list-of-matrices-nicely-to-the-same-worksheet-in-excel
-
-#wb = loadWorkbook("matrix.xlsx", create = TRUE)
-# Create a new sheet
-#createSheet(wb, name = "mysheet")
-# cumulative length (rows) of matrices
-# +2 = 1 for list names, 1 for header row
-#cumlen = cumsum(c(1, head(sapply(EMP_metadata_issues, nrow), n = -1) + 2))
-# Write data rows (implicitly vectorized!)
-#writeWorksheet(wb, data = EMP_metadata_issues, sheet = "mysheet", startRow = cumlen + 1, header = FALSE, rownames=lapply(EMP_metadata_issues, rownames))
-# Write list names
-#writeWorksheet(wb, data = as.list(names(EMP_metadata_issues)), sheet = "mysheet", startRow = cumlen, header = FALSE)
-#saveWorkbook(wb)
 
 #check out some really bad ones...
 #tibetan_plateau_salt_lake_sediment
@@ -875,3 +723,58 @@ summary(is.na(all.maps[["Friedman_alaska_peat_soils"]][["TEMP"]]))
 all.maps[["Friedman_alaska_peat_soils"]][["TOT_N_METH"]]
 range(all.maps[["Bergen Ocean Acidification Mesocosms"]][["ORG_NITRO"]], finite=TRUE)
 summary(is.na(all.maps[["Bergen Ocean Acidification Mesocosms"]][["ORG_NITRO"]]))
+
+range(all.maps[["Great Lake Microbiome"]][["NITROGEN_SATURATION"]], finite=TRUE)
+summary(all.maps[["Great Lake Microbiome"]][["NITROGEN_SATURATION"]])
+length(all.maps[["Great Lake Microbiome"]][["NITROGEN_SATURATION"]])
+
+
+#######################
+#in regards to the "Have you seen these OTUs" e-mail
+#realized I can check the OTU tables from EMP that I downloaded
+#when I got all 62 studies
+
+library(phyloseq)
+#emp.otu<-import_biom("C:/Users/asus4/Documents/EarthMicrobiomeProject/QIIME_metadata_download/8_17_2013_all_qiime_proccessed_studies_n62/meta_analysis_tmpiuSyWGySPR1izselizZR_otu_table.biom", 
+#										 parseFunction=parse_taxonomy_greengenes)
+#don't do this, crashed all running programs
+
+#bring in the mapping file for all 62 studies
+emp.map62<-read.delim("C:/Users/asus4/Documents/EarthMicrobiomeProject/QIIME_metadata_download/8_17_2013_all_qiime_proccessed_studies_n62/meta_analysis_tmpiuSyWGySPR1izselizZR_map.txt", quote="", stringsAsFactors=FALSE)
+
+#get all titles
+unique(emp.map62[, "TITLE"])
+
+#fix known issues
+emp.map62[grep("Intertidal microbes 16s for 2009 and", emp.map62$TITLE), "TITLE"]<-"Intertidal microbes 16s for 2009 and 2010"
+emp.map62[grep("EPOCA_Svalbard", emp.map62$TITLE), "TITLE"]<-"EPOCA_Svalbard2018"
+#now there are only 61 unique titles...
+#which means two QIIME processed studies have the same title...
+
+#are study IDs unique?
+colnames(emp.map62)[grep("STUDY", colnames(emp.map62))]
+length(unique(emp.map62[,"STUDY_ID"]))
+#and there are 63 unique study IDs...
+
+unique(emp.map62[,c("TITLE", "STUDY_ID")])
+dim(unique(emp.map62[,c("TITLE", "STUDY_ID")]))
+#and there are 64 unique combinations of TITLe and STUDY_ID
+#ah, two studies have NA for TITLE, hence repeat...
+
+head(emp.map62[91, ], 2)[!is.na(head(emp.map62[91, ], 2))]
+colnames(head(emp.map62[91, ], 2))[!is.na(head(emp.map62[91, ], 2))]
+#this could work as TITLE EMP_Thomas_sponges_16S_L007
+which(emp.map62$RUN_PREFIX=="EMP_Thomas_sponges_16S_L007")
+test<-emp.map62[which(emp.map62$RUN_PREFIX=="EMP_Thomas_sponges_16S_L007"), ]
+head(test[,which(sapply(test, function(x) !any(is.na(x))))],2)
+
+emp.map62[which(emp.map62$RUN_PREFIX=="EMP_Thomas_sponges_16S_L007"), "TITLE"]<-"EMP_Thomas_sponges_16S_L007"
+
+
+head(emp.map62[92, ], 2)[!is.na(head(emp.map62[92, ], 2))]
+colnames(head(emp.map62[92, ], 2))[!is.na(head(emp.map62[92, ], 2))]
+head(emp.map62[92, ], 2)
+
+unique(emp.map62[, "LONGITUDE"])
+
+emp.biom.files<-list.files("")
