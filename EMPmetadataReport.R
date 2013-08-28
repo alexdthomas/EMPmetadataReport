@@ -10,16 +10,13 @@ library(rols)
 library(reshape2)
 library(plyr)
 
-
 setwd("~/EarthMicrobiomeProject/R/EMPmetadataReport")
 
 def.par <- par(no.readonly = TRUE) # save default, for resetting...
 
-#set directory to location of all mapping files
-setwd("~/EarthMicrobiomeProject/QIIME_metadata_download/mapping_files")
-
 #list mapping files
-map.file.names<-list.files()
+map.file.names<-list.files(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"), pattern="_map.txt", recursive=TRUE)
+
 #create list of data frames for each mapping file
 all.maps<-list()
 
@@ -27,11 +24,12 @@ all.maps<-list()
 #note characterAsFactors=FALSE to reduce class issues
 #though this only removes issues of character -> factor and vice versa issues
 #does not resolve charcter-> integer, numeric, date etc...
-all.maps<-lapply(map.file.names, function(x) read.delim(x, quote="", stringsAsFactors=FALSE))
+all.maps<-lapply(map.file.names, function(x) read.delim(file.path(paste(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"), x, sep="/")), quote="", stringsAsFactors=FALSE))
 
-#reset working directory 
-setwd("~/EarthMicrobiomeProject/R/EMPmetadataReport")
-
+# this is a slicker way to import all the mapping files than old line
+# but changes the order of the all.maps list
+# some lines are (unfortunately) hard coded to this order… so look out!
+	
 #check merge
 emp.map<-Reduce(function(x, y) merge(x, y, all=TRUE), all.maps)
 #well no more warnings, so character/ factor resolved
@@ -50,8 +48,8 @@ sort(unlist(lapply(all.maps, function(x) mean(is.na(x)))))
 which(unlist(lapply(all.maps, function(x) mean(is.na(x))))>0.24)
 
 #explore that one
-head(all.maps[[41]])
-sort(apply(all.maps[[41]], 2, function(x){length(which(is.na(x)))}))
+head(all.maps[[7]])
+sort(apply(all.maps[[7]], 2, function(x){length(which(is.na(x)))}))
 
 #can get study titles
 lapply(all.maps, function(x) unique(x[,"TITLE"]))
@@ -59,17 +57,16 @@ lapply(all.maps, function(x) unique(x[,"TITLE"]))
 which(lapply(all.maps, function(x) length(unique(x[,"TITLE"])))>1)
 #oh, only 2
 
-
 #fix titles
-sort(all.maps[[9]][,"TITLE"])
+sort(all.maps[[42]][,"TITLE"])
 #so this is an Excel 'draw down error', 
 #started with "Intertidal microbes 16s for 2009 and 2010"
-all.maps[[9]][,"TITLE"]<-"Intertidal microbes 16s for 2009 and 2010"
+all.maps[[42]][,"TITLE"]<-"Intertidal microbes 16s for 2009 and 2010"
 
 #the other one
-sort(all.maps[[16]][,"TITLE"])
+sort(all.maps[[30]][,"TITLE"])
 #same issue
-all.maps[[16]][,"TITLE"]<-"EPOCA_Svalbard2018"
+all.maps[[30]][,"TITLE"]<-"EPOCA_Svalbard2018"
 
 #and titles
 unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
@@ -129,7 +126,7 @@ write.csv(study_column_table,
 #explore most common column values
 com.col<-sort(table(unlist(lapply(all.maps, colnames))), decreasing=TRUE)
 #subset columns that are in every study
-com.col<-com.col[which(com.col==49)]
+com.col<-com.col[which(com.col==length(all.maps))]
 com.col<-names(com.col)
 lapply(all.maps, function(x) head(x[ ,which(colnames(x) %in% com.col)], 2))
 
@@ -262,9 +259,7 @@ write.csv(EMP_metadata_issues.df,
 #check out some really bad ones...
 #tibetan_plateau_salt_lake_sediment
 head(all.maps[["tibetan_plateau_salt_lake_sediment"]])
-head(all.maps[[22]])
 colnames(all.maps[["tibetan_plateau_salt_lake_sediment"]])
-colnames(all.maps[[1]])
 all.maps[["tibetan_plateau_salt_lake_sediment"]]["COLLECTION_DATE"]
 
 #Kilauea geothermal soils and biofilms
@@ -776,5 +771,7 @@ colnames(head(emp.map62[92, ], 2))[!is.na(head(emp.map62[92, ], 2))]
 head(emp.map62[92, ], 2)
 
 unique(emp.map62[, "LONGITUDE"])
+#oh, this is wrong... hope it is only issue with combining all studies
+#in one file... then is a QIIME issue
+#can go through list and find ones I don't have yet...
 
-emp.biom.files<-list.files("")
