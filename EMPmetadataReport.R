@@ -1,14 +1,15 @@
-#restart the metdata analysis using Git in the new directory
-#redo first_to_merge_class_issues, 
-#this time set characterAsFactor=FALSE when import
+#restart the metdata analysis using an additional 15 studies
+#also very cleaned up script as of 8/27/2013
+#look out for issues with additional studies and/or 
+#different order in all.maps list
 
-library(BiocInstaller)
-library(XML)
-library(XMLSchema)
-library(SSOAP)
-library(rols)
-library(reshape2)
-library(plyr)
+# library(BiocInstaller)
+# library(XML)
+# library(XMLSchema)
+# library(SSOAP)
+# library(rols)
+# library(reshape2)
+# library(plyr)
 
 setwd("~/EarthMicrobiomeProject/R/EMPmetadataReport")
 
@@ -20,62 +21,88 @@ map.file.names<-list.files(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_
 #create list of data frames for each mapping file
 all.maps<-list()
 
-#import all mapping files, name as individual objects and place in list
+#import all mapping files, 
+#place each one as a seperate data frame in the list 'all.maps'
 #note characterAsFactors=FALSE to reduce class issues
-#though this only removes issues of character -> factor and vice versa issues
+#the arguement stringsAsFactors=False 
+#removes issues of character -> factor and vice versa issues
 #does not resolve charcter-> integer, numeric, date etc...
 all.maps<-lapply(map.file.names, function(x) read.delim(file.path(paste(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"), x, sep="/")), quote="", stringsAsFactors=FALSE))
 
 # this is a slicker way to import all the mapping files than old line
-# but changes the order of the all.maps list
+# but changes the order of the 'all.maps' list
 # some lines are (unfortunately) hard coded to this order… so look out!
 	
 #check merge
 emp.map<-Reduce(function(x, y) merge(x, y, all=TRUE), all.maps)
-#well no more warnings, so character/ factor resolved
+#, so character/ factor resolved
+#there are not 17072 obs x 539 fields...
 
-#search colnames
-colnames(emp.map)[grep('contact', colnames(emp.map), ignore.case=TRUE)]
+#remove this data frame though, too big, unnecessary, and has many issues
+#(many study specific columns produce many NA, change column class, etc...)
+rm(emp.map)
 
-#explore data
-#make a list of how many values are NA out of total
-unlist(lapply(all.maps, function(x) paste(length(which(is.na(x))), 
-																					nrow(x)*ncol(x), sep="/")))
-
+#explore NA
 #mean NA?
 sort(unlist(lapply(all.maps, function(x) mean(is.na(x)))))
-#one of them is 25% NA?
+#some are >25%?
 which(unlist(lapply(all.maps, function(x) mean(is.na(x))))>0.24)
 
-#explore that one
+#take a look at those ones...
 head(all.maps[[7]])
+dim(all.maps[[7]])
+#which columns have the most NAs?
 sort(apply(all.maps[[7]], 2, function(x){length(which(is.na(x)))}))
+
+head(all.maps[[28]])
+dim(all.maps[[28]])
+sort(apply(all.maps[[28]], 2, function(x){length(which(is.na(x)))}))
 
 #can get study titles
 lapply(all.maps, function(x) unique(x[,"TITLE"]))
-#great, some studies gave each sample a unique  title... annoying
+#some studies have more than one unique  title, ID those
 which(lapply(all.maps, function(x) length(unique(x[,"TITLE"])))>1)
-#oh, only 2
+#3
 
 #fix titles
-sort(all.maps[[42]][,"TITLE"])
+sort(all.maps[[40]][,"TITLE"])
 #so this is an Excel 'draw down error', 
+#looks like started with "EPOCA_Svalbard2018" 
+all.maps[[40]][,"TITLE"]<-"EPOCA_Svalbard2018"
+
+#next title issue
+sort(all.maps[[54]][,"TITLE"])
+#also this is an Excel 'draw down error', 
 #started with "Intertidal microbes 16s for 2009 and 2010"
-all.maps[[42]][,"TITLE"]<-"Intertidal microbes 16s for 2009 and 2010"
+all.maps[[54]][,"TITLE"]<-"Intertidal microbes 16s for 2009 and 2010"
 
-#the other one
-sort(all.maps[[30]][,"TITLE"])
-#same issue
-all.maps[[30]][,"TITLE"]<-"EPOCA_Svalbard2018"
+#next title issue
+sort(all.maps[[63]][,"TITLE"])
+#this is more complicated
+table(all.maps[[63]][,"TITLE"])
+unique(all.maps[[63]][,"TITLE"])
+#this mapping file appears to contain 11 different studies  
+#useful to have only one title for labeling purposes, 
+#can add column of id another column to use...
+sort(colnames(all.maps[[63]]))
+#called "Thomas_sponge_communities" on http://microbio.me/qiime
+head(all.maps[[63]][grep("Thomas_sponge_communities", all.maps[[63]])])
+#ah, just switch TITLE and ExPERIMENT_TITLE
+which(colnames(all.maps[[63]]) %in% c("TITLE", "EXPERIMENT_TITLE"))
+colnames(all.maps[[63]])[c(8,32)]<-c("EXPERIMENT_TITLE", "TITLE")
+#check
+unique(all.maps[[63]][,"TITLE"])
+unique(all.maps[[63]][,"EXPERIMENT_TITLE"])
+#ok, that worked
 
-#and titles
+#check titles again
 unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
-#ah good
+#now have one unique title per study
 
-#name studies in list
+#name studies in list by unique title
 names(all.maps)<-unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
 
-#make a little table...
+#make a summary stable: title, nrow, ncol, NA, etc...
 study_count_NA_table<-
 	data.frame(TITLE=unlist(lapply(all.maps, function(x) unique(x[,"TITLE"]))),
 						 No_SAMPLES=unlist(lapply(all.maps, nrow)),
@@ -90,20 +117,25 @@ study_count_NA_table<-study_count_NA_table[order(as.character(study_count_NA_tab
 #export to subfolder of working directory, remove row names
 write.csv(study_count_NA_table, 
 					file.path(paste(getwd(), 
-													"outputs/study_count_NA_table.csv", sep="/")), 
+								"outputs/study_count_NA_table.csv", sep="/")), 
 					row.names=FALSE)
 
+#get list of all unique columns
+all.col<-unique(unlist(lapply(all.maps, colnames)))
 
-#now a little more depth...
-#check out column names
+#search colnames 
+all.col[grep('contact', all.col, ignore.case=TRUE)]
+
+#create a sorted table of column name frequency 
+#(how many studies have this metadata field)
 study_column_table<-sort(table(unlist(lapply(all.maps, colnames))), decreasing=TRUE)
-#clean up for exporting
-study_column_table<-as.data.frame(study_column_table)
-#study names are currently row names, add as column
+#convert from array to data frame for ease of use and exporting as table
+study_column_table<-data.frame(study_column_table)
+#column names are currently row names, add as column
 study_column_table$COLUMN_NAMES<-rownames(study_column_table)
 #rename count column
 colnames(study_column_table)[1]<-"No_STUDIES"
-#replace row names
+#replace row names with # (easier to read)
 rownames(study_column_table)<-as.character(1:nrow(study_column_table))
 #reorder
 study_column_table<-study_column_table[,c(2,1)]
@@ -111,24 +143,22 @@ study_column_table<-study_column_table[,c(2,1)]
 study_column_table<-cbind(study_column_table[1:38,], study_column_table[39:76,])
 
 #add a little note, how many columns not shown...
+#don't have to hard code this, it is based on total number of columns and 
+#number of rows in table with blanks added to make the table readily presentable
 study_column_table<-rbind(study_column_table, 
 													c(paste("*", 
 																	paste(as.character(length(unique(unlist(lapply(all.maps, colnames))))-nrow(study_column_table)*2), 
 																				"columns not shown", sep=" "), 
 																	sep=""), "", "", ""))
 
-#this is handy...
+#export table
 write.csv(study_column_table, 
 					file.path(paste(getwd(), 
 													"outputs/study_column_table.csv", sep="/")), 
 					row.names=FALSE)
 
-#explore most common column values
-com.col<-sort(table(unlist(lapply(all.maps, colnames))), decreasing=TRUE)
-#subset columns that are in every study
-com.col<-com.col[which(com.col==length(all.maps))]
-com.col<-names(com.col)
-lapply(all.maps, function(x) head(x[ ,which(colnames(x) %in% com.col)], 2))
+#how many fields are only in a single study?
+summary(data.frame(sort(table(unlist(lapply(all.maps, colnames))), decreasing=TRUE))<2)
 
 #pick through each study and find which common columns have different classes
 #had written a really ugly nested loop to do this and it was not that helpful
@@ -163,6 +193,8 @@ check.class<-data.frame(check.class)
 rownames(check.class)<-paste(col.comm, ".class", sep="")
 #transpose the table so it is study x field (instead of field x study)
 check.class<-t(check.class)
+#what types of classes are present?
+unique(unlist(apply(check.class, 2, unique)))
 
 #use a very similar function to produce the first value in the column
 #or an example of what the field loooks like
@@ -200,11 +232,13 @@ meta.ex<-c("SEQUENCING_METH", "LIBRARY_CONSTRUCTION_PROTOCOL", "PCR_PRIMERS",
 #create new table of study title, contacts and field ranges, 
 #classes and values of interest
 
-EMP_metadata_issues<-lapply(all.maps, function(x) data.frame(Value=c(
+EMP.meta.ls<-lapply(all.maps, function(x) data.frame(Value=c(
 	#study title first
 	paste(unique(x[,"TITLE"]), collapse=" "),
 	#any values that may indicate contact information
-	paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
+	ifelse(isTRUE(colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")),
+					paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
+				 "No Contacts"),
 	#paste the range and #NA out of total for all numeric columns 
 	#(listed in meta.num)
 	unlist(lapply(meta.num, function(i) 
@@ -220,35 +254,103 @@ EMP_metadata_issues<-lapply(all.maps, function(x) data.frame(Value=c(
 		unlist(ifelse(isTRUE(i %in% colnames(x)), 
 									paste(unique(x[which(!is.na(x[,i])),i]), collapse=" "), "No Field")))),
 	#add a break between studies
-	paste("")),	
-#FIELD=c("TITLE","CONTACTS", "RUN_DATE","RUN_DATE.class", "DEPTH","DEPTH.class", "break"),  																	
-	row.names=c("TITLE", 
-	"CONTACTS", 
-	"COLLECTION_DATE_range", 
-	"COLLECTION_DATE_class", 
-	"SAMP_SIZE_range",
-	"DEPTH_range",
-	"DEPTH.class", 
-	"RUN_DATE_range",
-	"RUN_DATE.class",
-	"SEQUENCING_METH", 
-	"LIBRARY_CONSTRUCTION", 
-	"PCR_PRIMERS", 
-	"PLATFORM", 
-	"RUN_CENTER",  
-	"SAMPLE_CENTER", 
-	"SAMPLE_LOCATION", 
-	"TARGET_GENE", 
-	"")  																	
-	))
+	paste("")), 
+	stringsAsFactors=FALSE
+))	
 
+
+#first look at just the new studies
+new<-c(9,11,17,21,24,27,28,31,32,37,45,46,55,56,61,63)
+EMP.meta.ls.new<-sapply(EMP.meta.ls, "[[", new)
+EMP.meta.ls[[9]]
+#convert to flatten to data frame 
+EMP.meta.df.new<-do.call("rbind", EMP.meta.ls)
+#add field column
+EMP.meta.df.new$Field<-rep(c("TITLE", 
+											"CONTACTS", 
+											"COLLECTION_DATE_range", 
+											"COLLECTION_DATE_class", 
+											"SAMP_SIZE_range",
+											"DEPTH_range",
+											"DEPTH.class", 
+											"RUN_DATE_range",
+											"RUN_DATE.class",
+											"SEQUENCING_METH", 
+											"LIBRARY_CONSTRUCTION", 
+											"PCR_PRIMERS", 
+											"PLATFORM", 
+											"RUN_CENTER",  
+											"SAMPLE_CENTER", 
+											"SAMPLE_LOCATION", 
+											"TARGET_GENE",
+											""),							
+											length(all.maps))
+#reorder clumns
+EMP.meta.df.new<-EMP.meta.df.new[,c("Field", "Value")]
+#replace row names
+rownames(EMP.meta.df.new)<-seq(1:nrow(EMP.meta.df.new))
+
+#export whole data frame to visually inspect 
+write.csv(EMP.meta.df.new, 
+					file.path(paste(getwd(), 
+													"outputs/EMP_metadata_issues.csv", sep="/")), 
+					row.names=FALSE)
+
+#now work with whole data frame of all studies
 #add study title as list title
-names(EMP_metadata_issues)<-unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
+names(EMP.meta.ls)<-unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
 
-#convert to data frame and export
-EMP_metadata_issues.df<-data.frame(EMP_metadata_issues, check.names=FALSE)
+#convert to flatten to data frame 
+EMP.meta.df<-do.call("rbind", EMP.meta.ls)
+#add field column
+EMP.meta.df$Field<-rep(c("TITLE", 
+												 "CONTACTS", 
+												 "COLLECTION_DATE_range", 
+												 "COLLECTION_DATE_class", 
+												 "SAMP_SIZE_range",
+												 "DEPTH_range",
+												 "DEPTH.class", 
+												 "RUN_DATE_range",
+												 "RUN_DATE.class",
+												 "SEQUENCING_METH", 
+												 "LIBRARY_CONSTRUCTION", 
+												 "PCR_PRIMERS", 
+												 "PLATFORM", 
+												 "RUN_CENTER",  
+												 "SAMPLE_CENTER", 
+												 "SAMPLE_LOCATION", 
+												 "TARGET_GENE",
+												 ""),							
+											 length(all.maps))
+#reorder clumns
+EMP.meta.df<-EMP.meta.df[,c("Field", "Value")]
+#replace row names
+rownames(EMP.meta.df)<-seq(1:nrow(EMP.meta.df))
 
-write.csv(EMP_metadata_issues.df, 
+#previously edited manually to find issues
+#think can subset now 
+#should probably export later after adding additional fields (chemistry, etc...)
+colnames(EMP.meta.df)
+dim(EMP.meta.df)
+head(EMP.meta.df)
+
+#subset titles, contacts, No Field, NA to NA and integer dates
+dim(EMP.meta.df[c(which(EMP.meta.df$Field==c("TITLE", "CONTACTS") |
+												EMP.meta.df$Value== "No Field"),
+									grep("NA to NA", EMP.meta.df$Value),
+									grep(glob2rx("20* to 20*"), EMP.meta.df$Value)), ])
+
+
+EMP.meta.df.sub<-EMP.meta.df[c(which(EMP.meta.df$Field==c("TITLE", "CONTACTS") |
+																		 	EMP.meta.df$Value== "No Field"),
+															 grep("NA to NA", EMP.meta.df$Value),
+															 grep(glob2rx("20* to 20*"), EMP.meta.df$Value)), ]
+
+dim(EMP.meta.df.sub)
+
+#
+
+write.csv(EMP.meta.df, 
 					file.path(paste(getwd(), 
 													"outputs/EMP_metadata_issues.csv", sep="/")), 
 					row.names=FALSE)
