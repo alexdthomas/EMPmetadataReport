@@ -255,32 +255,9 @@ emp.gis.na.admin<-do.call("rbind", emp.gis.na.admin)
 summary(as.character(emp.gis.na.admin[,1]) == as.character(emp.gis.na$COUNTRY))
 unique(cbind(as.character(emp.gis.na.admin[,1]), as.character(emp.gis.na[, "COUNTRY"])))
 
-unlist(lapply(na.dist, function(x) data.frame(borders[which(rownames(data.frame(borders)) %in% as.character(x)), "admin"])))
-
-summary(emp.gis.na$admin == emp.gis.na$COUNTRY)
-head(emp.gis.na[, c("admin", "COUNTRY")])
-
-emp.gis.na.buff<-gBuffer(emp.gis.na, width=(na.dist+3), byid=TRUE)
-#emp.gis.na.buff<-lapply(1:length(emp.gis.na), function(x) gBuffer(emp.gis.na[x, ], width=na.dist[x], byid=TRUE))
-emp.gis.na.buff<-SpatialPolygonsDataFrame(emp.gis.na.buff, data.frame(emp.gis.na))
-head(data.frame(emp.gis.na.buff))
-
+#plot
 plot(borders)
 points(emp.gis.na, col="red", pch=20)
-plot(emp.gis.na.buff, add=TRUE)
-
-class(borders)
-class(emp.gis.na.buff)
-
-emp.border.na<-over(emp.gis.na.buff, borders, returnList=TRUE)
-colnames(data.frame(emp.border))
-head(data.frame(emp.border$admin))
-
-summary(emp.gis.na$COUNTRY %in% data.frame(emp.border.na$admin))
-
-
-library(geosphere)
-buff<-lapply(emp.gis.na[,c("LONGITUDE", "LATITUDE")], function(x) destPoint(x, b=seq(1,360,length.out=N), d=100))
 
 #plot
 par(mar = c(0.1, 0.1, 0.1, 0.1))
@@ -311,6 +288,8 @@ coordinates(emp.gis.wrong)<-c("LONGITUDE", "LATITUDE")
 writeOGR(emp.gis.wrong, getwd(), "emp_gis_wrong", driver="ESRI Shapefile", overwrite_layer=TRUE)
 
 
+##############################################
+#go into more detail
 #pick through each study and find which common columns have different classes
 #had written a really ugly nested loop to do this and it was not that helpful
 #below is much cleaner and more helpful
