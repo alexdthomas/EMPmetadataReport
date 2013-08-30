@@ -38,10 +38,6 @@ emp.map<-Reduce(function(x, y) merge(x, y, all=TRUE), all.maps)
 #, so character/ factor resolved
 #there are not 17072 obs x 539 fields...
 
-#remove this data frame though, too big, unnecessary, and has many issues
-#(many study specific columns produce many NA, change column class, etc...)
-rm(emp.map)
-
 #explore NA
 #mean NA?
 sort(unlist(lapply(all.maps, function(x) mean(is.na(x)))))
@@ -101,6 +97,12 @@ unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
 
 #name studies in list by unique title
 names(all.maps)<-unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
+#note that titles are different from the name of the QIIME file
+qiime.file.names<-list.dirs(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"))
+qiime.file.names<-qiime.file.names[-1]
+qiime.file.names<-lapply(qiime.file.names, function(x)
+	substr(x, nchar("C:/Users/asus4/Documents/EarthMicrobiomeProject/QIIME_metadata_download//"), nchar(x)))								
+qiime.file.names<-unlist(qiime.file.names)
 
 #make a summary stable: title, nrow, ncol, NA, etc...
 study_count_NA_table<-
@@ -159,6 +161,155 @@ write.csv(study_column_table,
 
 #how many fields are only in a single study?
 summary(data.frame(sort(table(unlist(lapply(all.maps, colnames))), decreasing=TRUE))<2)
+
+#some columns I know are required, find which studies are missing values
+#for these
+all.maps[["Spatial and Temporal Variation in Nest and Egg Bacteria of Wild Birds"]][which(is.na(all.maps[["Spatial and Temporal Variation in Nest and Egg Bacteria of Wild Birds"]][["ENV_FEATURE"]])), ]
+
+missing.crit<-lapply(1:length(all.maps), function(x) all.maps[[x]][which(is.na(all.maps[[x]][["ENV_FEATURE"]]) |
+																													 is.na(all.maps[[x]][["ENV_BIOME"]]) |
+																													 is.na(all.maps[[x]][["ENV_MATTER"]]) |
+																													 is.na(all.maps[[x]][["LATITUDE"]]) |
+																													 is.na(all.maps[[x]][["LONGITUDE"]])), 
+																										 c("X.SampleID", "TITLE", 'ENV_FEATURE', 'ENV_BIOME', "ENV_MATTER", "LATITUDE", "LONGITUDE")])
+
+#so only a few samples in each of these studies are missing any of these critical fields
+lapply(all.maps[c(unique(missing.crit$TITLE))], nrow)
+
+#convert to data frame
+missing.crit<-do.call("rbind", missing.crit)
+dim(missing.crit)
+
+#export
+write.csv(missing.crit, 
+					file.path(paste(getwd(), 
+													"outputs/missing_crit.csv", sep="/")), 
+					row.names=FALSE)
+
+#check lat long coordinates against COUNTRY field
+library(rgdal)
+#import natural earth administrative boundaries (country borders map)
+borders<-readOGR(dsn="C:/Users/asus4/Documents/GIS/Data/Natural_Earth", 
+								 layer="ne_50m_admin_0_countries")
+
+#subset samples with lat/long (according to missing.crit should be all but 31)
+#use the emp.map data frame (not good for investigating data, but should be ok for plotting coordinates)
+emp.gis<-subset(emp.map, complete.cases(emp.map[,c("LONGITUDE", "LATITUDE")]))
+nrow(emp.map)-nrow(emp.gis)
+
+#remove "GAZ:" from COUNTRY
+emp.gis$COUNTRY<-substr(emp.gis$COUNTRY, 5, nchar(as.character(emp.gis$COUNTRY)))
+
+#convert to SpatialPointsDataFrame
+coordinates(emp.gis) = c("LONGITUDE", "LATITUDE")
+
+#need to check and set spatial projection
+proj4string(borders)
+proj4string(emp.gis)
+proj4string(emp.gis)<-CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+
+#overlay EMP spatial points on country map
+emp.border<-over(emp.gis, borders, returnList=FALSE)
+
+#check overlay
+colnames(data.frame(emp.border))
+dim(data.frame(emp.border))
+
+summary(emp.border$admin)
+#hmm, 2196 NA's
+summary(emp.gis$COUNTRY)
+summary(emp.gis$COUNTRY == emp.border$admin)
+#and 1745 FALSE?
+
+#so the NA's are points not in polygons (off land)
+#the FALSE are points whose country does not match the name of the polygon
+
+#try to match NA to nearest country
+emp.gis.na<-data.frame(emp.gis[which(is.na(emp.border$admin)), ]) 
+coordinates(emp.gis.na)= c("LONGITUDE", "LATITUDE")
+proj4string(emp.gis.na)<-CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+
+#this was helpful https://stat.ethz.ch/pipermail/r-sig-geo/2011-June/012008.html
+library(rgeos)
+
+#rgeos gives warnings that object is not projected
+#this would be an issue, except I am just interetsted in the clostest
+#polygon, the measure does not need to be accurate 
+is.projected(emp.gis.na)
+is.projected(borders)
+#not projected
+
+#get the distance of each point to polygons
+na.dist<- gDistance(emp.gis.na, borders, byid=TRUE)
+#find which polygon is closest to points
+na.dist<- apply(na.dist, 2, function(x) which(x==min(x)))
+#convert to regular data frame
+emp.gis.na<-data.frame(emp.gis.na)
+#match the row name of polygon to the min distance to point
+#this may not be right... pretty sure not right
+emp.gis.na.admin<-lapply(na.dist, function(x) data.frame(borders[which(rownames(data.frame(borders)) %in% as.character(x)), "admin"]))
+
+#but can get out of list
+emp.gis.na.admin<-do.call("rbind", emp.gis.na.admin)
+#and compare
+summary(as.character(emp.gis.na.admin[,1]) == as.character(emp.gis.na$COUNTRY))
+unique(cbind(as.character(emp.gis.na.admin[,1]), as.character(emp.gis.na[, "COUNTRY"])))
+
+unlist(lapply(na.dist, function(x) data.frame(borders[which(rownames(data.frame(borders)) %in% as.character(x)), "admin"])))
+
+summary(emp.gis.na$admin == emp.gis.na$COUNTRY)
+head(emp.gis.na[, c("admin", "COUNTRY")])
+
+emp.gis.na.buff<-gBuffer(emp.gis.na, width=(na.dist+3), byid=TRUE)
+#emp.gis.na.buff<-lapply(1:length(emp.gis.na), function(x) gBuffer(emp.gis.na[x, ], width=na.dist[x], byid=TRUE))
+emp.gis.na.buff<-SpatialPolygonsDataFrame(emp.gis.na.buff, data.frame(emp.gis.na))
+head(data.frame(emp.gis.na.buff))
+
+plot(borders)
+points(emp.gis.na, col="red", pch=20)
+plot(emp.gis.na.buff, add=TRUE)
+
+class(borders)
+class(emp.gis.na.buff)
+
+emp.border.na<-over(emp.gis.na.buff, borders, returnList=TRUE)
+colnames(data.frame(emp.border))
+head(data.frame(emp.border$admin))
+
+summary(emp.gis.na$COUNTRY %in% data.frame(emp.border.na$admin))
+
+
+library(geosphere)
+buff<-lapply(emp.gis.na[,c("LONGITUDE", "LATITUDE")], function(x) destPoint(x, b=seq(1,360,length.out=N), d=100))
+
+#plot
+par(mar = c(0.1, 0.1, 0.1, 0.1))
+plot(borders)
+#add all points
+points(coordinates(emp.gis), col="green", pch=20)
+#add points where COUNTRY does not match in red
+points(coordinates(emp.gis[which(!emp.gis$COUNTRY == emp.border$admin), c("TITLE", "COUNTRY")]), col="red", pch=20)
+#some of these points definitely look like they should match...
+
+unique(data.frame(emp.gis[which(!emp.gis$COUNTRY == emp.border$admin | is.na(emp.border$admin)), c("TITLE", "COUNTRY")]))
+nrow(unique(data.frame(emp.gis[which(!emp.gis$COUNTRY == emp.border$admin), c("TITLE", "COUNTRY")])))
+#so 1745 samples do no match, but only 17 unique 
+unique(data.frame(emp.gis[which(is.na(emp.border$admin)), c("TITLE", "COUNTRY")]))
+
+#export to GIS to investigate
+emp.gis.wrong<-data.frame(emp.gis[which(!emp.gis$COUNTRY == emp.border$admin | is.na(emp.border$admin)), ]) 
+emp.gis.wrong<-emp.gis.wrong[,c("X.SampleID", "TITLE", "LATITUDE", "LONGITUDE", "COUNTRY","Description")]
+emp.gis.wrong<-unique(emp.gis.wrong)
+dim(emp.gis.wrong)
+class(emp.gis.wrong)
+
+#add the matching natural earth admin column
+emp.gis.wrong$ne_admin<-emp.border[which(!emp.gis$COUNTRY == emp.border$admin | is.na(emp.border$admin)), "admin"]
+coordinates(emp.gis.wrong)<-c("LONGITUDE", "LATITUDE")
+
+#export these points to 
+writeOGR(emp.gis.wrong, getwd(), "emp_gis_wrong", driver="ESRI Shapefile", overwrite_layer=TRUE)
+
 
 #pick through each study and find which common columns have different classes
 #had written a really ugly nested loop to do this and it was not that helpful
@@ -231,12 +382,34 @@ meta.ex<-c("SEQUENCING_METH", "LIBRARY_CONSTRUCTION_PROTOCOL", "PCR_PRIMERS",
 
 #create new table of study title, contacts and field ranges, 
 #classes and values of interest
+ifelse(isTRUE(TRUE %in% (colnames(all.maps[["Polluted Polar Coastal Sediments"]]) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT"))),
+			 paste(unique(all.maps[["Polluted Polar Coastal Sediments"]][,colnames(all.maps[["Polluted Polar Coastal Sediments"]]) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
+			 "No Contacts")
 
-EMP.meta.ls<-lapply(all.maps, function(x) data.frame(Value=c(
+EMP.meta.ls<-lapply(all.maps, function(x) data.frame(
+	Field=c("TITLE", 
+					"CONTACTS", 
+					"COLLECTION_DATE_range",
+					"SAMP_SIZE_range",
+					"DEPTH_range",
+					"RUN_DATE_range",
+					"COLLECTION_DATE_class", 
+					"DEPTH.class", 
+					"RUN_DATE.class",
+					"SEQUENCING_METH", 
+					"LIBRARY_CONSTRUCTION", 
+					"PCR_PRIMERS", 
+					"PLATFORM", 
+					"RUN_CENTER",  
+					"SAMPLE_CENTER", 
+					"SAMPLE_LOCATION", 
+					"TARGET_GENE",
+					""),
+	Value=c(
 	#study title first
 	paste(unique(x[,"TITLE"]), collapse=" "),
 	#any values that may indicate contact information
-	ifelse(isTRUE(colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")),
+	ifelse(isTRUE(TRUE %in% (colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT"))),
 					paste(unique(x[,colnames(x) %in% c("PRINCIPAL_INVESTIGATOR_CONTACT", "LAB_PERSON_CONTACT", "MOST_RECENT_CONTACT")]), collapse="; "),
 				 "No Contacts"),
 	#paste the range and #NA out of total for all numeric columns 
@@ -254,47 +427,61 @@ EMP.meta.ls<-lapply(all.maps, function(x) data.frame(Value=c(
 		unlist(ifelse(isTRUE(i %in% colnames(x)), 
 									paste(unique(x[which(!is.na(x[,i])),i]), collapse=" "), "No Field")))),
 	#add a break between studies
-	paste("")), 
+	paste("")),
 	stringsAsFactors=FALSE
 ))	
 
+#maybe could figure out how to reorder rows of each data frame in the list
+#so far promising but trick...
+EMP.meta.ls[["Polluted Polar Coastal Sediments"]][["Field"]]["TITLE", "CONTACTS", sort(EMP.meta.ls[["Polluted Polar Coastal Sediments"]][["Field"]][
+	which(!EMP.meta.ls[["Polluted Polar Coastal Sediments"]][["Field"]] %in% c("TITLE", "CONTACTS", ""))
+	]), ""]
+
+test<-c("TITLE", "CONTACTS", sort(EMP.meta.ls[["Polluted Polar Coastal Sediments"]][["Field"]][
+	which(!EMP.meta.ls[["Polluted Polar Coastal Sediments"]][["Field"]] %in% c("TITLE", "CONTACTS", ""))
+	]), "")
+
+sort(EMP.meta.ls[["Polluted Polar Coastal Sediments"]][["Field"]][
+	which(!EMP.meta.ls[["Polluted Polar Coastal Sediments"]][["Field"]] %in% c("TITLE", "CONTACTS", ""))
+	])
+
 
 #first look at just the new studies
-new<-c(9,11,17,21,24,27,28,31,32,37,45,46,55,56,61,63)
-EMP.meta.ls.new<-sapply(EMP.meta.ls, "[[", new)
-EMP.meta.ls[[9]]
+#got this list from my notebook
+new<-c("Caporaso_illumina_time_series",
+					 "CaporasoIlluminaPNAS2011_5prime", 
+					 "Dominguez_Puerto_Rico_Cohort",
+					 "Ezenwa_Cape_Buffalo",
+					 "Gasser_MWC_catchment_microbes",
+					 "Grossart_German_lake_water_sediment",
+					 "Haig_WaterPurif_temp_spat",
+					 "Hultman_Geochemical_Landscapes_permafrost",
+					 "Jansson_Alaskan_fire_chrono_Tanana",
+					 "Jurelivicius_Antarctic_cleanup",
+					 "Metcalf_SanDiegoZoo_folivorus_primate",
+					 "Moore_Yucatan_cenotes",
+					 "Rees_VulcanoIsland_seawaterMedSeA",
+					 "Spirito_Monensin_Cow_Hindgut",
+					 "Thomas_sponge_communities")
+new<-which(qiime.file.names %in% new)
+
+EMP.meta.ls.new<-EMP.meta.ls[new]
+length(EMP.meta.ls.new)
 #convert to flatten to data frame 
-EMP.meta.df.new<-do.call("rbind", EMP.meta.ls)
-#add field column
-EMP.meta.df.new$Field<-rep(c("TITLE", 
-											"CONTACTS", 
-											"COLLECTION_DATE_range", 
-											"COLLECTION_DATE_class", 
-											"SAMP_SIZE_range",
-											"DEPTH_range",
-											"DEPTH.class", 
-											"RUN_DATE_range",
-											"RUN_DATE.class",
-											"SEQUENCING_METH", 
-											"LIBRARY_CONSTRUCTION", 
-											"PCR_PRIMERS", 
-											"PLATFORM", 
-											"RUN_CENTER",  
-											"SAMPLE_CENTER", 
-											"SAMPLE_LOCATION", 
-											"TARGET_GENE",
-											""),							
-											length(all.maps))
-#reorder clumns
-EMP.meta.df.new<-EMP.meta.df.new[,c("Field", "Value")]
+EMP.meta.df.new<-do.call("rbind", EMP.meta.ls.new)
 #replace row names
 rownames(EMP.meta.df.new)<-seq(1:nrow(EMP.meta.df.new))
 
 #export whole data frame to visually inspect 
 write.csv(EMP.meta.df.new, 
 					file.path(paste(getwd(), 
-													"outputs/EMP_metadata_issues.csv", sep="/")), 
+													"outputs/EMP_metadata_issues_new.csv", sep="/")), 
 					row.names=FALSE)
+
+#new and intersting issues to investigate
+all.maps[["Geochemical landscapes"]]["COLLECTION_DATE"]
+sort(all.maps[["Geochemical landscapes"]][["COLLECTION_DATE"]])
+head(all.maps[["Geochemical landscapes"]], 1)
 
 #now work with whole data frame of all studies
 #add study title as list title
@@ -302,45 +489,22 @@ names(EMP.meta.ls)<-unlist(lapply(all.maps, function(x) unique(x[,"TITLE"])))
 
 #convert to flatten to data frame 
 EMP.meta.df<-do.call("rbind", EMP.meta.ls)
-#add field column
-EMP.meta.df$Field<-rep(c("TITLE", 
-												 "CONTACTS", 
-												 "COLLECTION_DATE_range", 
-												 "COLLECTION_DATE_class", 
-												 "SAMP_SIZE_range",
-												 "DEPTH_range",
-												 "DEPTH.class", 
-												 "RUN_DATE_range",
-												 "RUN_DATE.class",
-												 "SEQUENCING_METH", 
-												 "LIBRARY_CONSTRUCTION", 
-												 "PCR_PRIMERS", 
-												 "PLATFORM", 
-												 "RUN_CENTER",  
-												 "SAMPLE_CENTER", 
-												 "SAMPLE_LOCATION", 
-												 "TARGET_GENE",
-												 ""),							
-											 length(all.maps))
-#reorder clumns
-EMP.meta.df<-EMP.meta.df[,c("Field", "Value")]
+
 #replace row names
 rownames(EMP.meta.df)<-seq(1:nrow(EMP.meta.df))
 
-#previously edited manually to find issues
-#think can subset now 
+#18 values per study
+which(EMP.meta.df$Value=="Polluted Polar Coastal Sediments")
+#this is the example of good(-ish) metadata 
+EMP.meta.df[595:612, ]
+
+#previously edited manually to find issues, think can subset now 
 #should probably export later after adding additional fields (chemistry, etc...)
-colnames(EMP.meta.df)
-dim(EMP.meta.df)
-head(EMP.meta.df)
+#but test now
 
 #subset titles, contacts, No Field, NA to NA and integer dates
-dim(EMP.meta.df[c(which(EMP.meta.df$Field==c("TITLE", "CONTACTS") |
-												EMP.meta.df$Value== "No Field"),
-									grep("NA to NA", EMP.meta.df$Value),
-									grep(glob2rx("20* to 20*"), EMP.meta.df$Value)), ])
 
-
+#this method scrambles the order of everything
 EMP.meta.df.sub<-EMP.meta.df[c(which(EMP.meta.df$Field==c("TITLE", "CONTACTS") |
 																		 	EMP.meta.df$Value== "No Field"),
 															 grep("NA to NA", EMP.meta.df$Value),
@@ -348,55 +512,58 @@ EMP.meta.df.sub<-EMP.meta.df[c(which(EMP.meta.df$Field==c("TITLE", "CONTACTS") |
 
 dim(EMP.meta.df.sub)
 
-#
+#experiment with indexing dataframes in lists
+EMP.meta.ls[[1]][which(EMP.meta.ls[[1]][["Field"]] %in% "TITLE"|
+											 	EMP.meta.ls[[1]][["Value"]] %in% "No Field"),]
+#note format list[[dataframe]][row#, ]
+#this makes sense '[[' for single element, '[' for multiple elements
+#and ',' to note rows, not columns
 
-write.csv(EMP.meta.df, 
+#check if additional fields work...
+EMP.meta.ls[[1]][c(which(EMP.meta.ls[[1]][["Field"]] %in% c("TITLE", "CONTACTS")|
+											 	EMP.meta.ls[[1]][["Value"]] %in% "No Field"),
+									 grep("NA to NA", EMP.meta.ls[[1]][["Value"]]),
+									 grep(glob2rx("20* to 20*"), EMP.meta.ls[[1]][["Value"]]),
+									 nrow(EMP.meta.ls[[1]])
+									 ) ,]
+
+#ok, so for the number of studies in the EMP.meta.ls
+#subset the TITLE, CONTACTS, any fields are 'No Field', 
+#any values are NA to NA
+#any dates that are just year
+#and the final row (the break between studies)
+EMP.meta.ls.sub<-lapply(1:length(EMP.meta.ls), function(x) EMP.meta.ls[[x]][c(which(EMP.meta.ls[[x]][["Field"]] %in% c("TITLE", "CONTACTS") |
+																														EMP.meta.ls[[x]][["Value"]] %in% "No Field"),
+																										grep("NA to NA", EMP.meta.ls[[x]][["Value"]]),
+																										grep(glob2rx("20* to 20*"), EMP.meta.ls[[x]][["Value"]]),
+																										nrow(EMP.meta.ls[[x]])													
+									) ,] )
+
+#convert to flatten to data frame 
+EMP.meta.df.sub<-do.call("rbind", EMP.meta.ls.sub)
+
+#replace row names
+rownames(EMP.meta.df.sub)<-seq(1:nrow(EMP.meta.df.sub))
+
+#write the table
+write.csv(EMP.meta.df.sub, 
 					file.path(paste(getwd(), 
 													"outputs/EMP_metadata_issues.csv", sep="/")), 
 					row.names=FALSE)
+#remember to copy and paste the 
+#Geochemical landscapes COLLECTION_DATE_range (starts spring 1951...)
 
 #this seemed useful, but in the end not, may want later though
 #http://stackoverflow.com/questions/13006909/export-a-list-of-matrices-nicely-to-the-same-worksheet-in-excel
 
-#check out some really bad ones...
-#tibetan_plateau_salt_lake_sediment
-head(all.maps[["tibetan_plateau_salt_lake_sediment"]])
-colnames(all.maps[["tibetan_plateau_salt_lake_sediment"]])
-all.maps[["tibetan_plateau_salt_lake_sediment"]]["COLLECTION_DATE"]
+#previously exported the 4 studies missing most/all sequencing data as csv
+#in fact do not have any fields that appear to contain this data
+#those studies are "tibetan_plateau_salt_lake_sediment", 
+# "Kilauea geothermal soils and biofilms", "Fermilab_spatial_study"
+# "Great Lake Microbiome"
 
-#Kilauea geothermal soils and biofilms
-head(all.maps[["Kilauea geothermal soils and biofilms"]])
-colnames(all.maps[["Kilauea geothermal soils and biofilms"]])
-
-dim(all.maps[["Environmental metagenomic interrogation of Thar desert microbial communities"]])
-all.maps[["Environmental metagenomic interrogation of Thar desert microbial communities"]]
-
-colnames(all.maps[["Fermilab_spatial_study"]])
-head(all.maps[["Fermilab_spatial_study"]])
-
-colnames(all.maps[["Great Lake Microbiome"]])
-head(all.maps[["Great Lake Microbiome"]])
-
-write.csv(head(all.maps[["tibetan_plateau_salt_lake_sediment"]]), 
-					file.path(paste(getwd(), 
-													"outputs/tibetan_plateau_salt_lake_sediment_head.csv", sep="/")), 
-					row.names=FALSE)
-
-write.csv(head(all.maps[["Kilauea geothermal soils and biofilms"]]), 
-					file.path(paste(getwd(), 
-													"outputs/Kilauea_geothermal_soils_and_biofilms_head.csv", sep="/")), 
-					row.names=FALSE)
-
-write.csv(head(all.maps[["Fermilab_spatial_study"]]), 
-					file.path(paste(getwd(), 
-													"outputs/Fermilab_spatial_study_head.csv", sep="/")), 
-					row.names=FALSE)
-
-write.csv(head(all.maps[["Great Lake Microbiome"]]), 
-					file.path(paste(getwd(), 
-													"outputs/Great_Lake_Microbiome_head.csv", sep="/")), 
-					row.names=FALSE)
-
+#############################################try to evaluate all columns in more than half of the studies
+#next
 #try to evaluate all other columns across studies
 col.n.comm<-names(which(sort(table(unlist(lapply(all.maps, colnames))), decreasing=TRUE)<=length(all.maps)/2))
 
@@ -877,3 +1044,33 @@ unique(emp.map62[, "LONGITUDE"])
 #in one file... then is a QIIME issue
 #can go through list and find ones I don't have yet...
 
+#######################
+#new idea for "Have you seen these OTUs" e-mail...
+
+#list biom files
+biom.file.names<-list.files(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"), pattern=".biom", recursive=TRUE)
+
+
+library(phyloseq)
+
+#test importing .biom table and searching for 'have you seen these OTUs'
+test<-import_biom(paste(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"), biom.file.names[1], sep="/"), parseFunction=parse_taxonomy_greengenes)
+#importing biom files takes a really long time...
+test
+otu_table(test)
+taxa_names(test)
+isTRUE(c(124309, 141145) %in% taxa_names(test))
+rm(test)
+
+isTRUE(c(124309, 141145) %in% taxa_names(import_biom(paste(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"), biom.file.names[2], sep="/"), parseFunction=parse_taxonomy_greengenes)))
+
+#create list of data frames for each mapping file
+have.seen.OTUs<-list()
+
+#import all mapping files, 
+# have.seen.OTUs<-lapply(biom.file.names, function(x) 
+# 	isTRUE(c(124309, 141145) %in% taxa_names(
+# 		import_biom(file.path(paste(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"), x, sep="/")), 
+# 								parseFunction=parse_taxonomy_greengenes))))
+
+#this also crashed my computer
