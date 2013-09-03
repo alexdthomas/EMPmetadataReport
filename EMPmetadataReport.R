@@ -10,9 +10,13 @@
 # library(rols)
 # library(reshape2)
 # library(plyr)
+library(rgeos)
+library(rgdal)
 
+#set working directory
 setwd("~/EarthMicrobiomeProject/R/EMPmetadataReport")
 
+#save defualt plotting options
 def.par <- par(no.readonly = TRUE) # save default, for resetting...
 
 #list mapping files
@@ -23,10 +27,9 @@ all.maps<-list()
 
 #import all mapping files, 
 #place each one as a seperate data frame in the list 'all.maps'
-#note characterAsFactors=FALSE to reduce class issues
 #the arguement stringsAsFactors=False 
 #removes issues of character -> factor and vice versa issues
-#does not resolve charcter-> integer, numeric, date etc...
+#does not resolve integer, numeric, date -> charcter etc...
 all.maps<-lapply(map.file.names, function(x) read.delim(file.path(paste(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"), x, sep="/")), quote="", stringsAsFactors=FALSE))
 
 # this is a slicker way to import all the mapping files than old line
@@ -104,7 +107,7 @@ qiime.file.names<-lapply(qiime.file.names, function(x)
 	substr(x, nchar("C:/Users/asus4/Documents/EarthMicrobiomeProject/QIIME_metadata_download//"), nchar(x)))								
 qiime.file.names<-unlist(qiime.file.names)
 
-#make a summary stable: title, nrow, ncol, NA, etc...
+#Earth Microbiome Project (EMP) metadata summary
 study_count_NA_table<-
 	data.frame(TITLE=unlist(lapply(all.maps, function(x) unique(x[,"TITLE"]))),
 						 No_SAMPLES=unlist(lapply(all.maps, nrow)),
@@ -126,7 +129,7 @@ write.csv(study_count_NA_table,
 all.col<-unique(unlist(lapply(all.maps, colnames)))
 
 #search colnames 
-all.col[grep('contact', all.col, ignore.case=TRUE)]
+all.col[grep('elev', all.col, ignore.case=TRUE)]
 
 #create a sorted table of column name frequency 
 #(how many studies have this metadata field)
@@ -162,30 +165,50 @@ write.csv(study_column_table,
 #how many fields are only in a single study?
 summary(data.frame(sort(table(unlist(lapply(all.maps, colnames))), decreasing=TRUE))<2)
 
-#some columns I know are required, find which studies are missing values
-#for these
-all.maps[["Spatial and Temporal Variation in Nest and Egg Bacteria of Wild Birds"]][which(is.na(all.maps[["Spatial and Temporal Variation in Nest and Egg Bacteria of Wild Birds"]][["ENV_FEATURE"]])), ]
-
-missing.crit<-lapply(1:length(all.maps), function(x) all.maps[[x]][which(is.na(all.maps[[x]][["ENV_FEATURE"]]) |
-																													 is.na(all.maps[[x]][["ENV_BIOME"]]) |
-																													 is.na(all.maps[[x]][["ENV_MATTER"]]) |
-																													 is.na(all.maps[[x]][["LATITUDE"]]) |
-																													 is.na(all.maps[[x]][["LONGITUDE"]])), 
-																										 c("X.SampleID", "TITLE", 'ENV_FEATURE', 'ENV_BIOME', "ENV_MATTER", "LATITUDE", "LONGITUDE")])
-
-#so only a few samples in each of these studies are missing any of these critical fields
-lapply(all.maps[c(unique(missing.crit$TITLE))], nrow)
+#NA values in core items of the MIMARKS checklists Environment 
+missing.crit<-lapply(1:length(all.maps), function(x) all.maps[[x]][which(is.na(all.maps[[x]][["LATITUDE"]]) |
+																																				 is.na(all.maps[[x]][["LONGITUDE"]]) |
+																																				 is.na(all.maps[[x]][["DEPTH"]]) |
+																																				 is.na(all.maps[[x]][["ALTITUDE"]]) |	
+																																				 is.na(all.maps[[x]][["COLLECTION_DATE"]]) |
+																																				 is.na(all.maps[[x]][["ENV_FEATURE"]]) |
+																																				 is.na(all.maps[[x]][["ENV_BIOME"]]) |
+																																				 is.na(all.maps[[x]][["ENV_MATTER"]])), 
+	c("X.SampleID", "TITLE", "LATITUDE", "LONGITUDE", "DEPTH", "ALTITUDE", "COLLECTION_DATE", 'ENV_FEATURE', 'ENV_BIOME', "ENV_MATTER")])
 
 #convert to data frame
 missing.crit<-do.call("rbind", missing.crit)
-dim(missing.crit)
+#aggregate by study title and count no. of NA's in all critical fields
+missing.crit.tab<-aggregate(missing.crit, by=list(missing.crit$TITLE), FUN=function(x) length(which(is.na(x))))
+#check
+missing.crit[missing.crit$TITLE == "Bird Egg Shells from Spain", "LATITUDE"]
+
+#clean
+colnames(missing.crit.tab)
+missing.crit.tab<-missing.crit.tab[,-which(colnames(missing.crit.tab) %in% c("X.SampleID", "TITLE"))]
+colnames(missing.crit.tab)[1]<-"TITLE"
+
+#add ELEVATION because not all studies have it, need to account for that
+#gotta make a temp list (subset studies with NA)
+tmp<-all.maps[missing.crit.tab$TITLE]
+#add the ELEVATION field
+missing.crit.tab$ELEVATION<-unlist(lapply(1:length(tmp), function(x) ifelse(isTRUE("ELEVATION" %in% colnames(tmp[[x]])), length(which(is.na(tmp[[x]][["ELEVATION"]]))), "No Field")))
+#add number of samples in that study
+missing.crit.tab$No.Samples<-unlist(lapply(tmp, nrow))
+
+#which study does not have ELEVATION?
+unlist(lapply(all.maps, function(x) which(!"ELEVATION"%in% colnames(x))))
+nrow(all.maps[["Comparison of groundwater samples from karst sinkholes (cenotes) from the Yucatan Peninsula, Mexico"]])
+#manually add this to table
 
 #export
-write.csv(missing.crit, 
+write.csv(missing.crit.tab, 
 					file.path(paste(getwd(), 
 													"outputs/missing_crit.csv", sep="/")), 
 					row.names=FALSE)
 
+###################
+#Geographic Data
 #check lat long coordinates against COUNTRY field
 library(rgdal)
 #import natural earth administrative boundaries (country borders map)
@@ -196,6 +219,10 @@ borders<-readOGR(dsn="C:/Users/asus4/Documents/GIS/Data/Natural_Earth",
 #use the emp.map data frame (not good for investigating data, but should be ok for plotting coordinates)
 emp.gis<-subset(emp.map, complete.cases(emp.map[,c("LONGITUDE", "LATITUDE")]))
 nrow(emp.map)-nrow(emp.gis)
+
+#check class, make sure lat/long usable
+class(emp.gis[, "LONGITUDE"])
+class(emp.gis[, "LATITUDE"])
 
 #remove "GAZ:" from COUNTRY
 emp.gis$COUNTRY<-substr(emp.gis$COUNTRY, 5, nchar(as.character(emp.gis$COUNTRY)))
@@ -216,10 +243,8 @@ colnames(data.frame(emp.border))
 dim(data.frame(emp.border))
 
 summary(emp.border$admin)
-#hmm, 2196 NA's
-summary(emp.gis$COUNTRY)
 summary(emp.gis$COUNTRY == emp.border$admin)
-#and 1745 FALSE?
+#and 1745 FALSE and 2196 NA's
 
 #so the NA's are points not in polygons (off land)
 #the FALSE are points whose country does not match the name of the polygon
@@ -230,7 +255,6 @@ coordinates(emp.gis.na)= c("LONGITUDE", "LATITUDE")
 proj4string(emp.gis.na)<-CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
 
 #this was helpful https://stat.ethz.ch/pipermail/r-sig-geo/2011-June/012008.html
-library(rgeos)
 
 #rgeos gives warnings that object is not projected
 #this would be an issue, except I am just interetsted in the clostest
@@ -241,37 +265,86 @@ is.projected(borders)
 
 #get the distance of each point to polygons
 na.dist<- gDistance(emp.gis.na, borders, byid=TRUE)
+class(na.dist)
+dim(na.dist)
+dim(borders)
+#so there is a measure from each point to every polygon
+attributes(na.dist)
+#so polygons named 0:240, same as rownames of borders
+#points labeled 1:2196, same as rownames for data.frame(emp.gis.na)
+
 #find which polygon is closest to points
-na.dist<- apply(na.dist, 2, function(x) which(x==min(x)))
+na.dist.min<- apply(na.dist, 2, function(x) which(x==min(x)))
 #convert to regular data frame
-emp.gis.na<-data.frame(emp.gis.na)
+na.dist.min<-data.frame(na.dist.min)
+
+dim(na.dist.min)
+dimnames(na.dist.min)
+#now rows are points and the value in only column is rowname of country polygon
 #match the row name of polygon to the min distance to point
-#this may not be right... pretty sure not right
-emp.gis.na.admin<-lapply(na.dist, function(x) data.frame(borders[which(rownames(data.frame(borders)) %in% as.character(x)), "admin"]))
 
-#but can get out of list
+#this may not be right... pretty sure not right... 
+#emp.gis.na.admin<-lapply(na.dist, function(x) data.frame(borders[which(rownames(data.frame(borders)) %in% as.character(x)), "admin"]))
+
+#convert to data.frame without factors
+borders.df <- data.frame(lapply(data.frame(borders), as.character), stringsAsFactors=FALSE)
+
+#test
+borders.df[rownames(borders.df) %in% as.character(na.dist.min[1,]), "admin"]
+borders.df["77", "admin"]
+borders.df[, "admin"]
+
+emp.gis.na.admin<-lapply(1:nrow(na.dist.min), function(x) borders.df[rownames(borders.df) %in% as.character(na.dist.min[x,]), "admin"])
+head(emp.gis.na.admin)
+#looks good
+
+#collapse list
 emp.gis.na.admin<-do.call("rbind", emp.gis.na.admin)
+head(emp.gis.na.admin)
+dim(emp.gis.na.admin)
+#so each row should correspond to a point that was NA and the Country is nearest polygon
+
 #and compare
-summary(as.character(emp.gis.na.admin[,1]) == as.character(emp.gis.na$COUNTRY))
-unique(cbind(as.character(emp.gis.na.admin[,1]), as.character(emp.gis.na[, "COUNTRY"])))
+emp.gis.na.df <- data.frame(lapply(data.frame(emp.gis.na), as.character), stringsAsFactors=FALSE)
 
-#plot
-plot(borders)
-points(emp.gis.na, col="red", pch=20)
+summary(as.character(emp.gis.na.admin) == as.character(emp.gis.na$COUNTRY))
+#so 1872 COUNTRY fields correclty match the nearest country polygon
+#324 do not
+unique(cbind(as.character(emp.gis.na.admin), as.character(emp.gis.na$COUNTRY)))
 
-#plot
-par(mar = c(0.1, 0.1, 0.1, 0.1))
-plot(borders)
-#add all points
-points(coordinates(emp.gis), col="green", pch=20)
-#add points where COUNTRY does not match in red
-points(coordinates(emp.gis[which(!emp.gis$COUNTRY == emp.border$admin), c("TITLE", "COUNTRY")]), col="red", pch=20)
-#some of these points definitely look like they should match...
+#which studies are these 324 samples in?
+unique(emp.gis.na.df[which(!as.character(emp.gis.na$COUNTRY) == as.character(emp.gis.na.admin)), "TITLE"])
+#3 studies have lat/long coordinates that do not place them nearest 
+#to the country border in the COUNTRY field
+unique(cbind(emp.gis.na.df[which(!as.character(emp.gis.na$COUNTRY) == as.character(emp.gis.na.admin)), "COUNTRY"],
+						 emp.gis.na.admin[which(!as.character(emp.gis.na$COUNTRY) == as.character(emp.gis.na.admin)), ]))
+#ah, and find what the mismatches are, only 13 and somewhat reasonable
 
-unique(data.frame(emp.gis[which(!emp.gis$COUNTRY == emp.border$admin | is.na(emp.border$admin)), c("TITLE", "COUNTRY")]))
-nrow(unique(data.frame(emp.gis[which(!emp.gis$COUNTRY == emp.border$admin), c("TITLE", "COUNTRY")])))
-#so 1745 samples do no match, but only 17 unique 
-unique(data.frame(emp.gis[which(is.na(emp.border$admin)), c("TITLE", "COUNTRY")]))
+#now investigate points where lat/long does not place point in
+#country specified in COUNTRY field
+emp.gis.f<-data.frame(emp.gis)
+emp.gis.f$ne.admin<-emp.border$admin
+#subset the rows where COUNTRY does not = admin
+emp.gis.f<-emp.gis.f[which(!as.character(emp.gis.f$COUNTRY) == as.character(emp.gis.f$ne.admin)), ]
+#correct number according to original summary
+dim(emp.gis.f)
+unique(emp.gis.f[, "TITLE"])
+unique(emp.gis.f[, c("COUNTRY", "ne.admin")])
+#some reasonable Scotland vs. United Kindtom, 
+#Republic of South Africa vs. South Africa
+#some unreasonable United States of America vs. China
+#Unisted States of America vs. Mexico
+unique(emp.gis.f[, c("TITLE", "COUNTRY", "ne.admin")])
+#United States of America vs. China (the Oregon Alder_Fir study...)
+
+#subset just problem ones
+emp.gis.f<-emp.gis.f[c(which(emp.gis.f$COUNTRY=="United States of America" & emp.gis.f$ne.admin =="Russia"),
+						which(emp.gis.f$COUNTRY=="United States of America" & emp.gis.f$ne.admin =="China"),
+						which(emp.gis.f$COUNTRY=="United States of America" & emp.gis.f$ne.admin =="Mexico")), ]
+dim(emp.gis.f)
+#inspect
+emp.gis.f[emp.gis.f$TITLE=="Global patterns of 16S rRNA diversity at a depth of millions of sequences per sample", ]
+
 
 #export to GIS to investigate
 emp.gis.wrong<-data.frame(emp.gis[which(!emp.gis$COUNTRY == emp.border$admin | is.na(emp.border$admin)), ]) 
@@ -287,6 +360,62 @@ coordinates(emp.gis.wrong)<-c("LONGITUDE", "LATITUDE")
 #export these points to 
 writeOGR(emp.gis.wrong, getwd(), "emp_gis_wrong", driver="ESRI Shapefile", overwrite_layer=TRUE)
 
+#export just studies where NA points COUNTRY does not match nearest 
+#country border
+emp.gis.na.bad<-emp.gis.na.df[which(!as.character(emp.gis.na$COUNTRY) == as.character(emp.gis.na.admin)), c("X.SampleID", "TITLE", "LATITUDE", "LONGITUDE", "COUNTRY","Description")]
+emp.gis.na.bad$ne.admin<-emp.gis.na.admin[which(!as.character(emp.gis.na$COUNTRY) == as.character(emp.gis.na.admin)), ]
+dim(emp.gis.na.bad)
+#somewhere lat/long got converted to numeric, fix now but 
+#should fix where that happened later
+emp.gis.na.bad$LATITUDE<-as.numeric(emp.gis.na.bad$LATITUDE)
+emp.gis.na.bad$LONGITUDE<-as.numeric(emp.gis.na.bad$LONGITUDE)
+#convert to sp class
+coordinates(emp.gis.na.bad)<-c("LONGITUDE", "LATITUDE")
+#export these points to 
+writeOGR(emp.gis.na.bad, getwd(), "emp_gis_NA_bad", driver="ESRI Shapefile", overwrite_layer=TRUE)
+
+#export just studies where lat/long matches country NOT in COUNTRY field
+emp.gis.f<-emp.gis.f[, c("X.SampleID", "TITLE", "LATITUDE", "LONGITUDE", "COUNTRY","Description", "ne.admin")]
+coordinates(emp.gis.f)<-c("LONGITUDE", "LATITUDE")
+writeOGR(emp.gis.f, getwd(), "emp_gis_f", driver="ESRI Shapefile", overwrite_layer=TRUE)
+
+#make summary table of GIS issues
+#first NA for matching COUNTRY
+emp.gis.na.bad.df<-data.frame(emp.gis.na.bad)
+head(emp.gis.na.bad.tab)
+colnames(emp.gis.na.bad.tab)
+unique(emp.gis.na.bad.tab[,c("TITLE", "COUNTRY", "ne.admin", "Description")])
+emp.gis.na.bad.tab<-unique(emp.gis.na.bad.tab[,c("TITLE", "COUNTRY", "ne.admin", "Description")])
+
+#add no. of samples with one of these unique combinations?
+emp.gis.na.bad.tab$No.Samples<-unlist(lapply(1:nrow(emp.gis.na.bad.tab), function(x) nrow(emp.gis.na.bad.df[which(emp.gis.na.bad.df$TITLE == emp.gis.na.bad.tab[x, "TITLE"] &
+																																																										emp.gis.na.bad.df$COUNTRY == emp.gis.na.bad.tab[x, "COUNTRY"] &
+																																																										emp.gis.na.bad.df$ne.admin == emp.gis.na.bad.tab[x, "ne.admin"] &
+																																																										emp.gis.na.bad.df$Description == emp.gis.na.bad.tab[x, "Description"]), ])))
+#total no. of samples in that study
+emp.gis.na.bad.tab$Tot_No._Study_Samples<-unlist(lapply(1:nrow(emp.gis.na.bad.tab), function(x) nrow(emp.map[which(emp.map$TITLE == emp.gis.na.bad.tab[x, "TITLE"]), ])))
+#write table
+write.csv(emp.gis.na.bad.tab, 
+					file.path(paste(getwd(), 
+													"outputs/emp_gis_na_bad_tab.csv", sep="/")), 
+					row.names=FALSE)
+
+#table of mismatch between COUNTRY and country of lat/long coordinate 
+emp.gis.f.df<-data.frame(emp.gis.f)
+colnames(emp.gis.f.df)
+emp.gis.f.tab<-unique(emp.gis.f.df[, c("TITLE", "COUNTRY", "Description", "ne.admin")])
+#No. of samples with mismatch
+emp.gis.f.tab$No.Samples<-unlist(lapply(1:nrow(emp.gis.f.tab), function(x) nrow(emp.gis.f.df[which(emp.gis.f.df$TITLE == emp.gis.f.tab[x, "TITLE"] &
+																																																					emp.gis.f.df$COUNTRY == emp.gis.f.tab[x, "COUNTRY"] &
+																																																					emp.gis.f.df$ne.admin == emp.gis.f.tab[x, "ne.admin"] &
+																																																					emp.gis.f.df$Description == emp.gis.f.tab[x, "Description"]), ])))
+#No. of samples in study
+emp.gis.f.tab$Tot_No._Study_Samples<-unlist(lapply(1:nrow(emp.gis.f.tab), function(x) nrow(emp.map[which(emp.map$TITLE == emp.gis.f.tab[x, "TITLE"]), ])))
+#write table
+write.csv(emp.gis.f.tab, 
+					file.path(paste(getwd(), 
+													"outputs/emp_gis_f_tab.csv", sep="/")), 
+					row.names=FALSE)
 
 ##############################################
 #go into more detail
