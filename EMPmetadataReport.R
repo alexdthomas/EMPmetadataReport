@@ -283,9 +283,6 @@ dimnames(na.dist.min)
 #now rows are points and the value in only column is rowname of country polygon
 #match the row name of polygon to the min distance to point
 
-#this may not be right... pretty sure not right... 
-#emp.gis.na.admin<-lapply(na.dist, function(x) data.frame(borders[which(rownames(data.frame(borders)) %in% as.character(x)), "admin"]))
-
 #convert to data.frame without factors
 borders.df <- data.frame(lapply(data.frame(borders), as.character), stringsAsFactors=FALSE)
 
@@ -747,19 +744,21 @@ colnames(EMP_chem_table)
 
 
 #just nitrogen?
-col.n.comm[grep('NITRO', col.n.comm, fixed=TRUE)]
+col.n.comm[grep(paste(c("NITRO", "_N_"), collapse="|"), col.n.comm, ignore.case=TRUE)]
 
 #look at metadata with nitrogen, make special list
 col.nitro<-c("TOT_NITRO", "TOT_NITRO_PERCENT", "TOT_NITRO_UNIT", "TOT_NITRO_UNITS", 
 						 "TOT_N_METH")
 
+col.nitro<-c(col.n.comm[grep(paste(c("NITRO", "_N_"), collapse="|"), col.n.comm, ignore.case=TRUE)])
+
 nitro.maps<-lapply(all.maps, function(x) ifelse(TRUE %in% (colnames(x) %in% col.nitro), head(x[,"TITLE"], 1), "No Field"))
 nitro.maps<-names(nitro.maps[which(!nitro.maps %in% "No Field")])
 lapply(all.maps[nitro.maps], function(x) head(x[colnames(x) %in% col.nitro], 2))
 #not many columns shared across studies, see if can focus
-length(nitro.maps) #11 studies have some nitrogen
+length(nitro.maps) #18 studies have some nitrogen
 as.matrix(table(unlist(lapply(all.maps[nitro.maps], function(x) colnames(x[colnames(x) %in% col.nitro])))))
-#10 have TOT_NITRO, only 7 have TOT_N_METH and only 1 has TOT_NITRO_UNITS
+#11 have TOT_NITRO, only 7 have TOT_N_METH and only 1 has TOT_NITRO_UNITS/TOT_NITRO_UNIT
 
 #export table for EMP nitrogen fields
 EMP_nitro_fq<-as.matrix(table(unlist(lapply(all.maps[nitro.maps], function(x) colnames(x[colnames(x) %in% col.nitro])))))
@@ -1027,9 +1026,13 @@ EMP_temp_table$SOIL_TEMP<-unlist(lapply(all.maps[temp.maps], function(x)
 				 paste(paste(range(x[,"SOIL_TEMP"], finite=TRUE), collapse=" to "), 
 				 			paste(length(which(is.na(x[,"SOIL_TEMP"]))), length(x[,"SOIL_TEMP"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
 
+EMP_temp_table$SAMP_STORE_TEMP<-unlist(lapply(all.maps[temp.maps], function(x) 
+	ifelse(TRUE %in% (colnames(x) %in% "SAMP_STORE_TEMP"),  
+				 paste(paste(range(x[,"SAMP_STORE_TEMP"], finite=TRUE), collapse=" to "), 
+				 			paste(length(which(is.na(x[,"SAMP_STORE_TEMP"]))), length(x[,"SAMP_STORE_TEMP"]), sep=" NA of "), sep="; "), "No Field")), use.names=FALSE)
 
 EMP_temp_table<-as.data.frame(EMP_temp_table)
-colnames(EMP_temp_table)<-c("TITLE", "CONTACTS", "TEMP", "ANNUAL_SEASON_TEMP", "AIR_TEMP", "SOIL_TEMP")
+colnames(EMP_temp_table)<-c("TITLE", "CONTACTS", "TEMP", "ANNUAL_SEASON_TEMP", "AIR_TEMP", "SOIL_TEMP", "SAMP_STORE_TEMP")
 
 #add temp fields
 
@@ -1069,9 +1072,9 @@ colnames(EMP_season_table)<-c("TITLE", "CONTACTS", col.season)
 #add SEASON_ENVIRONMENT fields
 EMP_season_table$SEASON_ENVIRONMENT<-unlist(lapply(all.maps[season.maps], function(x) ifelse(TRUE %in% (colnames(x) %in% "SEASON_ENVIRONMENT"), paste(head(x[,"SEASON_ENVIRONMENT"], 1), collapse=" "), "No Field")), use.names=FALSE)
 	
-write.csv(EMP_season_table, 
-					file.path(paste(getwd(), "outputs/EMP_season_table.csv", sep="/")), 
-					row.names=FALSE)
+# write.csv(EMP_season_table, 
+# 					file.path(paste(getwd(), "outputs/EMP_season_table.csv", sep="/")), 
+# 					row.names=FALSE)
 
 #search colnames
 col.n.comm[grep('UNIT', col.n.comm, fixed=FALSE)]
@@ -1100,6 +1103,39 @@ range(all.maps[["Great Lake Microbiome"]][["NITROGEN_SATURATION"]], finite=TRUE)
 summary(all.maps[["Great Lake Microbiome"]][["NITROGEN_SATURATION"]])
 length(all.maps[["Great Lake Microbiome"]][["NITROGEN_SATURATION"]])
 
+#other column fragments
+col.n.comm.sp
+col.n.comm[grep('NAME', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('BODY', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('HOST', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('ORG', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('DAY', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('DENSITY', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('DISS', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('GROWTH', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('ID', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('LOG', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('NUMBER', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('PRECPT', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('SAMP', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('SAMPLE', col.n.comm, fixed=TRUE)]
+col.n.comm[grep('SITE', col.n.comm, fixed=TRUE)]
+#none of these look very necessary to investigate
+#what about just the study specific fields
+col.n.comm
+col.only.1<-sort(table(unlist(lapply(all.maps, colnames))), decreasing=TRUE)
+col.only.1<-col.only.1[which(col.only.1<2)]
+col.only.1<-names(col.only.1)
+col.only.1.sp<-strsplit(names(col.only.1), "_")
+col.only.1.sp<-as.matrix(table(unlist(col.only.1.sp)))
+col.only.1.sp<-col.only.1.sp[order(col.only.1.sp[,1], decreasing=TRUE), ]
+as.matrix(col.only.1.sp)
+col.only.1[grep('TOT', col.only.1, fixed=TRUE)]
+col.only.1[grep(names(col.only.1.sp[1]), col.only.1, fixed=TRUE)]
+
+col.only.1.tab<-lapply(1:length(col.only.1.sp), function(x) col.only.1[grep(names(col.only.1.sp[x]), col.only.1, fixed=TRUE)])
+names(col.only.1.tab)<-names(col.only.1.sp)
+col.only.1.tab[1:50]
 
 #######################
 #in regards to the "Have you seen these OTUs" e-mail
