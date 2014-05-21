@@ -207,6 +207,11 @@ write.csv(missing.crit.tab,
 													"outputs/missing_crit.csv", sep="/")), 
 					row.names=FALSE)
 
+#which specific samples are missing critical data
+unique(unlist(lapply(all.maps, function(x) unique())))
+unlist(lapply(all.maps, function(x) unique(x[,c("TITLE", "STUDY_ID")])))
+
+
 ###################
 #Geographic Data
 #check lat long coordinates against COUNTRY field
@@ -226,6 +231,14 @@ class(emp.gis[, "LATITUDE"])
 
 #remove "GAZ:" from COUNTRY
 emp.gis$COUNTRY<-substr(emp.gis$COUNTRY, 5, nchar(as.character(emp.gis$COUNTRY)))
+
+#export all GIS data (with errors!) as shapefile
+colnames(emp.gis)
+emp.gis.out<-emp.gis[ ,c("X.SampleID", "TITLE", "STUDY_ID", "COLLECTION_DATE", "LONGITUDE", "LATITUDE",  
+												 "COUNTRY", "ENV_BIOME", "ENV_FEATURE", "ENV_MATTER", "ELEVATION")]
+coordinates(emp.gis.out) = c("LONGITUDE", "LATITUDE")
+proj4string(emp.gis.out)<-CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+writeOGR(emp.gis.out, getwd(), "emp_gis_out", driver="ESRI Shapefile", overwrite_layer=TRUE)
 
 #convert to SpatialPointsDataFrame
 coordinates(emp.gis) = c("LONGITUDE", "LATITUDE")
@@ -413,6 +426,7 @@ write.csv(emp.gis.f.tab,
 					file.path(paste(getwd(), 
 													"outputs/emp_gis_f_tab.csv", sep="/")), 
 					row.names=FALSE)
+
 
 ##############################################
 #go into more detail
@@ -679,6 +693,11 @@ head(col.n.comm.sp)
 col.n.comm.sp<-unlist(col.n.comm.sp)
 col.n.comm.sp<-as.matrix(sort(table(col.n.comm.sp), decreasing=TRUE))
 #this is useful...
+write.csv(col.n.comm.sp, 
+					file.path(paste(getwd(), 
+													"outputs/col_fragments.csv", sep="/")), 
+					row.names=TRUE)
+
 #frequencies...
 table(col.n.comm.sp)
 #start with most frequent
@@ -1137,84 +1156,263 @@ col.only.1.tab<-lapply(1:length(col.only.1.sp), function(x) col.only.1[grep(name
 names(col.only.1.tab)<-names(col.only.1.sp)
 col.only.1.tab[1:50]
 
-#######################
-#in regards to the "Have you seen these OTUs" e-mail
-#realized I can check the OTU tables from EMP that I downloaded
-#when I got all 62 studies
+#######################################
+#Environmental Ontology
+#modify script from qiime_metadata_clean.R
 
+#find envo fields
+all.col[grep('env', all.col, ignore.case=TRUE)]
+map.biome<-lapply(all.maps, function(x) x[, "ENV_BIOME"])
+map.biome<-unique(unlist(map.biome))
+map.biome<-map.biome[which(!is.na(map.biome))]
+map.biome<-substr(map.biome, 6, nchar(map.biome))
+
+library(rols)
+
+#function to create table to find updates to ENVO fields
+#because of how field names work will only work with ENVO 
+#but may be able to generalize more 
+envo.update<-function(input, ols, exact){
+	#query OLS by database ontology terms to get term ID's
+	#creates list of lists, sublist names are terms queried
+	#note, add exact=TRUE to search for exact EMP term
+	query.list<-sapply(input, olsQuery, ontologyName=ols, USE.NAMES=TRUE, simplify=TRUE, exact=exact)
+	#unlist list of lists
+	names.list<-rapply(query.list, names, how="unlist")
+	#get OLS metadata for each term ID, place in data frame
+	#transpose and add terms queried as row names
+	tmp.list<-lapply(names.list,  function(x)  
+		data.frame(t(data.frame(termMetadata(x, ontologyName=ols))), 
+							 row.names=x))
+	#add column for terms queried
+	tmp.list<-mapply(cbind, tmp.list, EMP_term=
+									 	substr(names(unlist(query.list)), 1, nchar(names(unlist(query.list)))-14))
+	#add row for term ID's
+	tmp.list<-mapply(cbind, tmp.list, ENVO_ID=
+									 	substr(names(unlist(query.list)), nchar(names(unlist(query.list)))-12, nchar(names(unlist(query.list)))))
+	#add column for OLS term (clarifies not exact matches)
+	tmp.list<-mapply(cbind, tmp.list, ENVO_term=unlist(query.list))
+	#reduce to single data frame, each row is a term ID
+	#each column is term metadata field
+	tmp.out <- Reduce(function(x, y) merge(x, y, all=TRUE), tmp.list)
+	#add column indicate if term ID is obsolete
+	tmp.out$IdObsolete<-lapply(tmp.out$ENVO_ID, isIdObsolete, ontologyName="ENVO")	
+	#add terms not found in olsQuery
+	add.lost<-data.frame(EMP_term=input[which(!input %in% tmp.out$EMP_term)])
+	tmp.out<-merge(tmp.out, add.lost, all=TRUE)
+	#rename similar columns to be similar
+# 	colnames(tmp.out)[grep('consider', colnames(tmp.out), ignore.case=TRUE)]<-"consider.replacement"
+# 	colnames(tmp.out)[grep('exact_synonym', colnames(tmp.out), ignore.case=TRUE)]<-"exact_synonym"
+# 	colnames(tmp.out)[grep('narrow_synonym', colnames(tmp.out), ignore.case=TRUE)]<-"narrow_synonym"
+# 	colnames(tmp.out)[grep('related_synonym', colnames(tmp.out), ignore.case=TRUE)]<-"related_synonym"
+# 	colnames(tmp.out)[grep('broad_synonym', colnames(tmp.out), ignore.case=TRUE)]<-"broad_synonym"
+	return(tmp.out)
+}
+
+#test new function
+#start with non NA values
+biome.update.table<-envo.update(map.biome, "ENVO", exact=TRUE)
+colnames(biome.update.table)
+
+#check if terms have biome as parent
+sapply(as.character(biome.update.table[which(biome.update.table$IdObsolete=="FALSE"),"ENVO_ID"]), 
+			 parents, ontologyName="ENVO", USE.NAMES=TRUE, simplify=TRUE)
+
+#some terms that are not obsolete also not biome...
+#ENVO:00009003, `ENVO:00006776, ENVO:00009002, ENVO:00000016(Yes biome), ENVO:00002032, ENVO:00000015(Yes, biome)
+
+#rerun without exact matching for terms where no ID could be found
+map.biome2<-biome.update.table[which(biome.update.table$IdObsolete=="NULL"), c("EMP_term")]
+map.biome2<-as.character(map.biome2)
+biome.update.table2<-envo.update(map.biome2, "ENVO", exact=FALSE)
+
+#check if terms have biome as parent
+sapply(as.character(biome.update.table2[which(biome.update.table2$IdObsolete=="FALSE"),"ENVO_ID"]), 
+			 parents, ontologyName="ENVO", USE.NAMES=TRUE, simplify=TRUE)
+#all of these terms have biome as parent 
+
+#create one table of ENVO information
+biome.update.tab.all<-merge(biome.update.table[which(!biome.update.table$IdObsolete=="NULL"), ], 
+														biome.update.table2, all=TRUE)
+
+#create table summary of ENVO biome 
+colnames(biome.update.tab.all)
+
+biome.summary.tab<-biome.update.tab.all[,c("EMP_term", "ENVO_ID", "ENVO_term", "IdObsolete", "replaced.by")]
+biome.summary.tab
+
+biome.summary.tab$no.studies
+
+#maybe easier to do this
+biome.summary.tab<-data.frame(emp.biome= map.biome)
+
+#add number of studies that contain this biome field 
+biome.summary.tab$no.studies<-unlist(lapply(map.biome, function(x) length(which(unlist(lapply(1:length(all.maps), function(i) 
+	isTRUE(TRUE %in% (grepl(x, all.maps[[i]][["ENV_BIOME"]])))
+))==TRUE))))
+
+#huh
+lapply(1:length(all.maps), function(i) 
+	isTRUE(TRUE %in% (grepl("cold-winter", all.maps[[i]][["ENV_BIOME"]])))
+)
+
+all.maps[[12]][["ENV_BIOME"]]
+
+#something like this would be helpful
+aggregate(biome.update.tab.all[,c("EMP_term", "IdObsolete")], by=list(biome.update.tab.all$EMP_term), FUN=)
+obs<-biome.update.tab.all[,c("EMP_term", "IdObsolete")]
+obs[order(as.character(obs$EMP_term)), ]
+
+#export this table and add the rest of data manually (the scripts are just not that helpful)
+write.csv(biome.summary.tab, 
+					file.path(paste(getwd(), "outputs/biome_summary_tab.csv", sep="/")), 
+					row.names=FALSE)
+
+##############
+#investigate values in fields of interest
+
+#pH
+hist(na.omit(unlist(lapply(all.maps, function(x) 
+	if("PH" %in% colnames(x)) {x[,"PH"]}))), main="pH", xlab="")
+#why does the x-axis go to 150?
+
+lapply(all.maps, function(x) if("PH" %in% colnames(x)) {summary(x[,"PH"])})
+#ah, "Routine samples of German Lakes" has a mean pH of 29.56...
+
+sort(all.maps[["Routine samples of German Lakes"]][["PH"]])
+#well don't see an obvious pattern to the errors
+#except jumps from 9.05 to 21 and then keeps going to 173...
+
+head(all.maps[["Routine samples of German Lakes"]])
+all.maps[["Routine samples of German Lakes"]][which(all.maps[["Routine samples of German Lakes"]][["PH"]]>9.05), ]
+#all pH > 9.05 do come from Lake Grosse Fuchskuhle...
+
+#######################################
+#try to work with just agricultural soil studies...
+
+map.matter<-lapply(all.maps, function(x) x[, "ENV_MATTER"])
+map.matter<-unique(unlist(map.matter))
+map.matter<-map.matter[which(!is.na(map.matter))]
+
+map.feat<-lapply(all.maps, function(x) x[, "ENV_FEATURE"])
+map.feat<-unique(unlist(map.feat))
+map.feat<-map.feat[which(!is.na(map.feat))]
+
+#ENVO
+#"soil" is matter ENV_MATTER=="ENVO:soil"
+#"agricultural land' is feature ENV_FEATURE=="ENVO:agricultural feature" or "ENVO:agricultural soil"
+
+map.ag.soil<-lapply(all.maps, function(x) x[which(x$ENV_MATTER=="ENVO:soil" & x$ENV_FEATURE=="ENVO:agricultural feature"), ])
+map.ag.soil<-lapply(all.maps, function(x) x[which(x$ENV_FEATURE=="ENVO:agricultural soil"), ])
+lapply(map.ag.soil, nrow)
+#"Latitudinal surveys of algal-associated microorganisms" is only study with ENV_FEATURE== "agricultural soil"...
+#no studies have ENV_MATTER=="ENVO:soil & ENV_FEATURE=="ENVO:agricultural feature"
+map.ag.soil<-all.maps[["Latitudinal surveys of algal-associated microorganisms"]]
+map.ag.soil<-map.ag.soil[which(map.ag.soil$ENV_FEATURE=="ENVO:agricultural soil"), ]
+head(map.ag.soil, 1)
+#according to abstract this is a stufy of seaweed, 
+#but sample description says swab from soil...
+
+#where are the samples from?
+plot(borders)
+coordinates(map.ag.soil)<-c("LONGITUDE", "LATITUDE")
+proj4string(map.ag.soil)<-CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+plot(map.ag.soil, add=TRUE)
+#and all the coordinates are the same...
+
+#so how about all soil...
+map.soil<-lapply(all.maps, function(x) x[which(x$ENV_MATTER=="ENVO:soil"), ])
+lapply(map.soil, nrow)
+map.soil<-Reduce(function(x, y) merge(x, y, all=TRUE), map.soil)
+dim(map.soil)
+map.soil<-subset(map.soil, complete.cases(map.soil[,c("LONGITUDE", "LATITUDE")]))
+
+plot(borders)
+#only lost 2...
+coordinates(map.soil)<-c("LONGITUDE", "LATITUDE")
+proj4string(map.soil)<-CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+points(map.soil, col="green", pch=20)
+
+map.soil.df<-as.data.frame(map.soil)
+
+unique(map.soil.df[,"TITLE"])
+unique(map.soil.df[,c("TITLE", "ENV_BIOME", "ENV_FEATURE", "ENV_MATTER")])
+#huh, so Canadian MetaMicroBiome Initiative has features- ENVO:agricultural feature and ENVO:vegetable garden soil 
+#Fermilab_spatial_study has feature ENVO:cultivated habitat
+map.ag.soil<-map.soil.df[which(map.soil.df$ENV_FEATURE == "ENVO:agricultural feature" | 
+															 map.soil.df$ENV_FEATURE == "ENVO:vegetable garden soil" |
+															 map.soil.df$ENV_FEATURE=="ENVO:cultivated habitat"),]
+dim(map.ag.soil)
+unique(map.ag.soil$TITLE)
+#well most of these are the Fermilab_spatial_study 
+
+head(all.maps[["Fermilab_spatial_study"]], 1)
+
+#work with just this data
+fermi.map<-all.maps[["Fermilab_spatial_study"]]
+coordinates(fermi.map)<-c("LONGITUDE", "LATITUDE")
+proj4string(fermi.map)<-CRS("+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0")
+
+fermi.map.df<-all.maps[["Fermilab_spatial_study"]]
+unique(fermi.map.df[,c("LONGITUDE", "LATITUDE", "Description")])
+#unique lat/long for every sample... awesome
+
+plot(borders)
+points(fermi.map)
+plot(fermi.map)
+
+#import biom table
 library(phyloseq)
-#emp.otu<-import_biom("C:/Users/asus4/Documents/EarthMicrobiomeProject/QIIME_metadata_download/8_17_2013_all_qiime_proccessed_studies_n62/meta_analysis_tmpiuSyWGySPR1izselizZR_otu_table.biom", 
-#										 parseFunction=parse_taxonomy_greengenes)
-#don't do this, crashed all running programs
+library(ggplot2)
+library(plyr)
 
-#bring in the mapping file for all 62 studies
-emp.map62<-read.delim("C:/Users/asus4/Documents/EarthMicrobiomeProject/QIIME_metadata_download/8_17_2013_all_qiime_proccessed_studies_n62/meta_analysis_tmpiuSyWGySPR1izselizZR_map.txt", quote="", stringsAsFactors=FALSE)
-
-#get all titles
-unique(emp.map62[, "TITLE"])
-
-#fix known issues
-emp.map62[grep("Intertidal microbes 16s for 2009 and", emp.map62$TITLE), "TITLE"]<-"Intertidal microbes 16s for 2009 and 2010"
-emp.map62[grep("EPOCA_Svalbard", emp.map62$TITLE), "TITLE"]<-"EPOCA_Svalbard2018"
-#now there are only 61 unique titles...
-#which means two QIIME processed studies have the same title...
-
-#are study IDs unique?
-colnames(emp.map62)[grep("STUDY", colnames(emp.map62))]
-length(unique(emp.map62[,"STUDY_ID"]))
-#and there are 63 unique study IDs...
-
-unique(emp.map62[,c("TITLE", "STUDY_ID")])
-dim(unique(emp.map62[,c("TITLE", "STUDY_ID")]))
-#and there are 64 unique combinations of TITLe and STUDY_ID
-#ah, two studies have NA for TITLE, hence repeat...
-
-head(emp.map62[91, ], 2)[!is.na(head(emp.map62[91, ], 2))]
-colnames(head(emp.map62[91, ], 2))[!is.na(head(emp.map62[91, ], 2))]
-#this could work as TITLE EMP_Thomas_sponges_16S_L007
-which(emp.map62$RUN_PREFIX=="EMP_Thomas_sponges_16S_L007")
-test<-emp.map62[which(emp.map62$RUN_PREFIX=="EMP_Thomas_sponges_16S_L007"), ]
-head(test[,which(sapply(test, function(x) !any(is.na(x))))],2)
-
-emp.map62[which(emp.map62$RUN_PREFIX=="EMP_Thomas_sponges_16S_L007"), "TITLE"]<-"EMP_Thomas_sponges_16S_L007"
+fermi.bio<-import_biom("C:/Users/asus4/Documents/EarthMicrobiomeProject/QIIME_metadata_download/Antonopoulos_Fermilab_Spatial_Study/Antonopoulos_Fermilab_Spatial_Study_otu_table.biom", 
+															 parseFunction=parse_taxonomy_greengenes)
 
 
-head(emp.map62[92, ], 2)[!is.na(head(emp.map62[92, ], 2))]
-colnames(head(emp.map62[92, ], 2))[!is.na(head(emp.map62[92, ], 2))]
-head(emp.map62[92, ], 2)
+#build phyloseq object
+fermi.otu<-otu_table(fermi.bio)
+fermi.tax<-tax_table(fermi.bio)
+fermi.smp<-sam_data(fermi.map.df)
+#different number of samples...
+sample_names(fermi.bio)
+head(fermi.map.df$X.SampleID)
+table(sample_names(fermi.bio) %in% fermi.map.df$X.SampleID)
+sample_names(fermi.smp)<-fermi.map.df$X.SampleID
+table(sample_names(fermi.bio) %in% sample_names(fermi.smp))
+#well, the mapping file has all the sample ID's the biom file does
+#just extra...
+#can I figure out why?
+sort(colnames(fermi.map.df))
+sort(fermi.map.df$BarcodeSequence)
+#they all have barcodes...
+sort(fermi.map.df$DEFAULT_EMP_STATUS)
+sort(fermi.map.df$DEPTH)
+sort(fermi.map.df$EMP_STATUS)
+sort(fermi.map.df$EXTRACTED_DNA_AVAIL_NOW)
+sort(fermi.map.df$SAMPLE_PROGRESS)
+#none of these indicate why there is a differnece...
 
-unique(emp.map62[, "LONGITUDE"])
-#oh, this is wrong... hope it is only issue with combining all studies
-#in one file... then is a QIIME issue
-#can go through list and find ones I don't have yet...
+#subset for now and move on
+fermi.smp<-fermi.smp[which(sample_names(fermi.smp) %in% sample_names(fermi.bio)), ]
 
-#######################
-#new idea for "Have you seen these OTUs" e-mail...
+fermi.phy<-phyloseq(fermi.otu, fermi.tax, fermi.smp)
 
-#list biom files
-biom.file.names<-list.files(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"), pattern=".biom", recursive=TRUE)
+#quick look (use some phyloseq tutorial code)
+theme_set(theme_bw())
 
+fermi.phy <- prune_species(speciesSums(fermi.phy) > 0, fermi.phy)
+plot_richness(fermi.phy, x = "Description", color="Description")
+#these plots are messed up 
 
-library(phyloseq)
+#following numerical ecology in R, see if I can get something...
+fermi.xy<-geoXY(fermi.map.df$LATITUDE, fermi.map.df$LONGITUDE, unit=1000)
+head(fermi.xy)
+head(fermi.map.df[,c("LONGITUDE", "LATITUDE")])
 
-#test importing .biom table and searching for 'have you seen these OTUs'
-test<-import_biom(paste(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"), biom.file.names[1], sep="/"), parseFunction=parse_taxonomy_greengenes)
-#importing biom files takes a really long time...
-test
-otu_table(test)
-taxa_names(test)
-isTRUE(c(124309, 141145) %in% taxa_names(test))
-rm(test)
+#check out otu values
+quantile(otu_table(fermi.phy))
 
-isTRUE(c(124309, 141145) %in% taxa_names(import_biom(paste(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"), biom.file.names[2], sep="/"), parseFunction=parse_taxonomy_greengenes)))
-
-#create list of data frames for each mapping file
-have.seen.OTUs<-list()
-
-#import all mapping files, 
-# have.seen.OTUs<-lapply(biom.file.names, function(x) 
-# 	isTRUE(c(124309, 141145) %in% taxa_names(
-# 		import_biom(file.path(paste(path.expand("~/EarthMicrobiomeProject/QIIME_metadata_download"), x, sep="/")), 
-# 								parseFunction=parse_taxonomy_greengenes))))
-
-#this also crashed my computer
+#check basic spatial strucutre
+anova(rda(otu_table(fermi.phy), fermi.xy))
+#transform otu data>
